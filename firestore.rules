@@ -53,6 +53,11 @@ service cloud.firestore {
                       isValidUser(incoming()) && 
                       (incoming().isAdmin == false || request.auth.token.email == 'chaminade.dondah.adjolou@gmail.com') &&
                       incoming().createdAt == request.time;
+      // Admin crée un profil pour un autre uid (compte créé via Auth secondaire côté app)
+      allow create: if isAdmin() &&
+                      isValidUser(incoming()) &&
+                      request.auth.uid != userId &&
+                      incoming().createdAt == request.time;
       allow update: if isOwner(userId) && 
                       isValidUser(incoming()) &&
                       incoming().isAdmin == existing().isAdmin &&

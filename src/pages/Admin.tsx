@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { db, handleFirestoreError, OperationType, signIn, signInWithEmailAndPassword, auth } from '../lib/firebase';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { FirebaseError } from 'firebase/app';
+import { db, handleFirestoreError, OperationType, signIn, signInWithEmailAndPassword, auth, adminCreateAuthUser } from '../lib/firebase';
 import {
   collection,
   query,
@@ -48,6 +49,7 @@ import {
   Info,
   X,
   Heart,
+  UserPlus,
 } from 'lucide-react';
 import { iptvService, Channel } from '../lib/iptvApi';
 import { useUser } from '../lib/UserContext';
@@ -112,6 +114,18 @@ const Admin: React.FC = () => {
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
   const [detailChannelId, setDetailChannelId] = useState<string | null>(null);
 
+  const [addMemberEmail, setAddMemberEmail] = useState('');
+  const [addMemberPassword, setAddMemberPassword] = useState('');
+  const [addMemberPasswordConfirm, setAddMemberPasswordConfirm] = useState('');
+  const [addMemberRole, setAddMemberRole] = useState<'user' | 'admin'>('user');
+  const [addMemberBusy, setAddMemberBusy] = useState(false);
+  const [addMemberError, setAddMemberError] = useState<string | null>(null);
+  const [addMemberSuccess, setAddMemberSuccess] = useState<string | null>(null);
+
+  /** Évite le clignotement : ne pas remettre loading=true à chaque re-exécution de l’effet. */
+  const adminFetchOverlayDoneRef = useRef(false);
+  const adminFetchKeyRef = useRef<string>('');
+
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginLoading(true);
@@ -126,29 +140,47 @@ const Admin: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!currentUser?.uid || !currentProfile?.isAdmin) {
+    const isAdmin = currentProfile?.isAdmin === true;
+    if (!currentUser?.uid || !isAdmin) {
+      adminFetchOverlayDoneRef.current = false;
+      adminFetchKeyRef.current = '';
       setLoading(false);
       return;
     }
 
+    const fetchKey = `${currentUser.uid}:admin`;
+    if (adminFetchKeyRef.current !== fetchKey) {
+      adminFetchKeyRef.current = fetchKey;
+      adminFetchOverlayDoneRef.current = false;
+    }
+
+    let cancelled = false;
+
     const fetchData = async () => {
+      const showOverlay = !adminFetchOverlayDoneRef.current;
+      if (showOverlay) setLoading(true);
+
       try {
-        setLoading(true);
         await iptvService.loadData();
+        if (cancelled) return;
         setChannels(iptvService.getEnrichedChannels());
 
         const viewsSnap = await getDocs(
           query(collection(db, 'views'), orderBy('timestamp', 'desc'), limit(2500))
         );
+        if (cancelled) return;
         setViews(viewsSnap.docs.map((d) => d.data() as ViewDoc));
 
         const usersSnap = await getDocs(collection(db, 'users'));
+        if (cancelled) return;
         setUsers(usersSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
 
         const ratingsSnap = await getDocs(collection(db, 'ratings'));
+        if (cancelled) return;
         setRatings(ratingsSnap.docs.map((d) => d.data() as RatingDoc));
 
         const settingsDoc = await getDoc(doc(db, 'settings', 'donation'));
+        if (cancelled) return;
         if (settingsDoc.exists()) {
           const d = settingsDoc.data() as Record<string, unknown>;
           setSettings({
@@ -158,13 +190,18 @@ const Admin: React.FC = () => {
             supportMessage: String(d.supportMessage ?? ''),
           });
         }
+        adminFetchOverlayDoneRef.current = true;
       } catch (error) {
-        handleFirestoreError(error, OperationType.GET, 'admin/data');
+        if (!cancelled) handleFirestoreError(error, OperationType.GET, 'admin/data');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     fetchData();
+
+    return () => {
+      cancelled = true;
+    };
   }, [currentUser?.uid, currentProfile?.isAdmin]);
 
   const handleToggleAdmin = async (userId: string, currentStatus: boolean, emailAddr: string) => {
@@ -187,6 +224,84 @@ const Admin: React.FC = () => {
       setUsers(users.map((u) => (u.id === userId ? { ...u, isAdmin: !currentStatus } : u)));
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, `users/${userId}`);
+    }
+  };
+
+  const addMemberAuthErrorMessage = (code: string) => {
+    switch (code) {
+      case 'auth/email-already-in-use':
+        return 'Cet email est déjà utilisé.';
+      case 'auth/invalid-email':
+        return 'Adresse email invalide.';
+      case 'auth/weak-password':
+        return 'Mot de passe trop faible (minimum 6 caractères).';
+      case 'auth/operation-not-allowed':
+        return 'La connexion email/mot de passe n’est pas activée dans Firebase Authentication.';
+      default:
+        return 'Impossible de créer le compte. Réessayez ou vérifiez la console Firebase.';
+    }
+  };
+
+  const handleAddMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddMemberError(null);
+    setAddMemberSuccess(null);
+    const emailTrim = addMemberEmail.trim().toLowerCase();
+    if (!emailTrim || !addMemberPassword) {
+      setAddMemberError('Renseignez l’email et le mot de passe.');
+      return;
+    }
+    if (addMemberPassword.length < 6) {
+      setAddMemberError('Le mot de passe doit contenir au moins 6 caractères.');
+      return;
+    }
+    if (addMemberPassword !== addMemberPasswordConfirm) {
+      setAddMemberError('Les mots de passe ne correspondent pas.');
+      return;
+    }
+    setAddMemberBusy(true);
+    try {
+      const cred = await adminCreateAuthUser(emailTrim, addMemberPassword);
+      const uid = cred.user.uid;
+      const isAdminRole = addMemberRole === 'admin';
+      await setDoc(doc(db, 'users', uid), {
+        email: emailTrim,
+        favorites: [],
+        isAdmin: isAdminRole,
+        isActive: true,
+        isProfileComplete: false,
+        createdAt: serverTimestamp(),
+      });
+      if (isAdminRole) {
+        await setDoc(doc(db, 'admins', uid), { email: emailTrim });
+      }
+      setUsers((prev) => [
+        {
+          id: uid,
+          email: emailTrim,
+          favorites: [],
+          isAdmin: isAdminRole,
+          isActive: true,
+          isProfileComplete: false,
+          createdAt: Timestamp.now(),
+        },
+        ...prev,
+      ]);
+      setAddMemberEmail('');
+      setAddMemberPassword('');
+      setAddMemberPasswordConfirm('');
+      setAddMemberRole('user');
+      setAddMemberSuccess(`Compte créé pour ${emailTrim}.`);
+    } catch (err) {
+      if (err instanceof FirebaseError && err.code.startsWith('auth/')) {
+        setAddMemberError(addMemberAuthErrorMessage(err.code));
+      } else {
+        setAddMemberError(
+          err instanceof Error ? err.message : 'Erreur lors de l’enregistrement du profil (le compte Auth peut avoir été créé quand même).'
+        );
+      }
+    } finally {
+      setAddMemberBusy(false);
     }
   };
 
@@ -280,7 +395,7 @@ const Admin: React.FC = () => {
   }, [channelsWithStats, searchChannel]);
 
   const stats = useMemo(() => {
-    if (loading || !currentProfile?.isAdmin) return null;
+    if (loading) return null;
 
     const channelCounts: Record<string, number> = {};
     views.forEach((v) => {
@@ -344,7 +459,7 @@ const Admin: React.FC = () => {
       topRatedAvg: topRated ? topRated.avgRating.toFixed(1) : '—',
       ratingDistribution,
     };
-  }, [views, channels, loading, currentProfile, users, ratings, channelsWithStats]);
+  }, [views, channels, loading, users, ratings, channelsWithStats]);
 
   const filteredUsers = useMemo(() => {
     const q = searchMember.toLowerCase();
@@ -811,6 +926,70 @@ const Admin: React.FC = () => {
                     className="bg-white/5 border border-white/10 rounded-xl py-3 px-12 text-sm focus:outline-none focus:border-[#e50914] w-full max-w-[300px]"
                   />
                 </div>
+              </div>
+
+              <div className="glass rounded-3xl border border-white/10 p-6 md:p-8 space-y-4">
+                <h3 className="text-sm font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                  <UserPlus size={16} className="text-[#e50914]" />
+                  Ajouter un membre
+                </h3>
+                <form onSubmit={handleAddMember} className="grid gap-4 md:grid-cols-2 lg:grid-cols-12 items-end">
+                  <div className="md:col-span-2 lg:col-span-4 space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Email</label>
+                    <input
+                      type="email"
+                      autoComplete="off"
+                      value={addMemberEmail}
+                      onChange={(e) => setAddMemberEmail(e.target.value)}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm focus:outline-none focus:border-[#e50914]"
+                      placeholder="membre@exemple.com"
+                    />
+                  </div>
+                  <div className="lg:col-span-2 space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Mot de passe</label>
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      value={addMemberPassword}
+                      onChange={(e) => setAddMemberPassword(e.target.value)}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm focus:outline-none focus:border-[#e50914]"
+                      placeholder="••••••"
+                    />
+                  </div>
+                  <div className="lg:col-span-2 space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Confirmer</label>
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      value={addMemberPasswordConfirm}
+                      onChange={(e) => setAddMemberPasswordConfirm(e.target.value)}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm focus:outline-none focus:border-[#e50914]"
+                      placeholder="••••••"
+                    />
+                  </div>
+                  <div className="lg:col-span-2 space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500">Rôle</label>
+                    <select
+                      value={addMemberRole}
+                      onChange={(e) => setAddMemberRole(e.target.value as 'user' | 'admin')}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm focus:outline-none focus:border-[#e50914] text-white"
+                    >
+                      <option value="user">Utilisateur</option>
+                      <option value="admin">Administrateur</option>
+                    </select>
+                  </div>
+                  <div className="md:col-span-2 lg:col-span-2">
+                    <button
+                      type="submit"
+                      disabled={addMemberBusy}
+                      className="w-full py-3 rounded-xl bg-[#e50914] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[#c40810] disabled:opacity-50 disabled:pointer-events-none"
+                    >
+                      {addMemberBusy ? 'Création…' : 'Créer le compte'}
+                    </button>
+                  </div>
+                </form>
+                {addMemberError && <p className="text-sm text-red-400 font-medium">{addMemberError}</p>}
+                {addMemberSuccess && <p className="text-sm text-green-400 font-medium">{addMemberSuccess}</p>}
               </div>
 
               <div className="glass rounded-3xl border-white/5 overflow-hidden overflow-x-auto">

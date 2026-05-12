@@ -1,4 +1,4 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -6,7 +6,20 @@ import firebaseConfig from '../../firebase-applet-config.json';
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId);
 export const auth = getAuth(app);
+
+/** Auth dédiée à la création de comptes depuis l’admin (ne remplace pas la session de `auth`). */
+const SECONDARY_AUTH_APP = 'MeneurTV-AdminCreateUser';
+const secondaryApp =
+  getApps().find((a) => a.name === SECONDARY_AUTH_APP) ?? initializeApp(firebaseConfig, SECONDARY_AUTH_APP);
+export const secondaryAuth = getAuth(secondaryApp);
 export const googleProvider = new GoogleAuthProvider();
+
+/** Crée un compte email/mot de passe sans affecter la session de `auth` (app Auth secondaire). */
+export async function adminCreateAuthUser(email: string, password: string) {
+  const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+  await signOut(secondaryAuth);
+  return cred;
+}
 
 // Validation connection
 async function testConnection() {
