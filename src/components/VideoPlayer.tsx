@@ -8,9 +8,21 @@ interface VideoPlayerProps {
   url: string;
   poster?: string;
   autoPlay?: boolean;
+  /** Lecteur compact (mini fenêtre) */
+  compact?: boolean;
+  className?: string;
+  /** Mini-lecteur : clic sur la vidéo = retour page chaîne */
+  pipNavigateOnVideoClick?: () => void;
 }
 
-const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, poster, autoPlay = true }) => {
+const VideoPlayer: React.FC<VideoPlayerProps> = ({
+  url,
+  poster,
+  autoPlay = true,
+  compact = false,
+  className,
+  pipNavigateOnVideoClick,
+}) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -86,16 +98,39 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, poster, autoPlay = true 
       }
     };
 
+    let loadingCleared = false;
+    const tryClearLoading = () => {
+      if (loadingCleared) return;
+      loadingCleared = true;
+      setIsLoading(false);
+    };
+
+    const onCanPlay = () => tryClearLoading();
+    video.addEventListener('canplay', onCanPlay, { once: true });
+
     if (Hls.isSupported()) {
       hls = new Hls({
         enableWorker: true,
-        startLevel: -1,
+        // Qualité la plus basse en premier = premier segment plus léger, démarrage plus rapide
+        startLevel: 0,
+        capLevelToPlayerSize: true,
+        maxBufferLength: 20,
+        maxMaxBufferLength: 90,
+        backBufferLength: 45,
+        startFragPrefetch: true,
+        manifestLoadingMaxRetry: 6,
+        levelLoadingMaxRetry: 6,
+        fragLoadingMaxRetry: 6,
+        levelLoadingTimeOut: 20000,
+        fragLoadingTimeOut: 20000,
       });
       hls.loadSource(url);
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        setIsLoading(false);
         if (autoPlay) video.play().catch(console.error);
+      });
+      hls.on(Hls.Events.FRAG_BUFFERED, (_, data) => {
+        if (data.frag?.type === 'main') tryClearLoading();
       });
       hls.on(Hls.Events.ERROR, handleError);
       hls.on(Hls.Events.LEVEL_LOADED, handleLevelLoaded);
@@ -103,7 +138,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, poster, autoPlay = true 
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = url;
       video.addEventListener('loadedmetadata', () => {
-        setIsLoading(false);
+        tryClearLoading();
         if (autoPlay) video.play().catch(console.error);
       });
       video.addEventListener('error', () => {
@@ -120,6 +155,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, poster, autoPlay = true 
     video.addEventListener('volumechange', onVolumeChange);
 
     return () => {
+      loadingCleared = true;
+      video.removeEventListener('canplay', onCanPlay);
       if (hls) {
         hls.destroy();
       }
@@ -165,6 +202,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, poster, autoPlay = true 
         videoRef.current.play().catch(console.error);
       }
     }
+  };
+
+  const onVideoSurfaceClick = () => {
+    if (pipNavigateOnVideoClick) {
+      pipNavigateOnVideoClick();
+      return;
+    }
+    togglePlay();
   };
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -232,16 +277,18 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, poster, autoPlay = true 
       onMouseMove={handleMouseMove}
       onMouseLeave={() => isPlaying && setShowControls(false)}
       className={cn(
-        "relative w-full aspect-video bg-black rounded-xl overflow-hidden group shadow-2xl transition-all",
-        isFullscreen ? "rounded-none" : "ring-1 ring-white/10"
+        'relative w-full aspect-video bg-black rounded-xl overflow-hidden group shadow-2xl transition-all',
+        isFullscreen ? 'rounded-none' : 'ring-1 ring-white/10',
+        className
       )}
     >
       <video
         ref={videoRef}
         poster={poster}
-        onClick={togglePlay}
+        onClick={onVideoSurfaceClick}
         className="w-full h-full object-contain cursor-pointer"
         playsInline
+        preload="auto"
       />
 
       {error ? (
@@ -266,11 +313,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, poster, autoPlay = true 
       )}
 
       {/* Persistent Live Indicator */}
-      <div className="absolute top-6 left-6 z-20 pointer-events-none select-none">
+      <div className={cn('absolute top-6 left-6 z-20 pointer-events-none select-none', compact && 'top-3 left-3')}>
         <motion.div 
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="flex items-center gap-2 bg-[#e50914] text-white px-3 py-1.5 rounded shadow-2xl overflow-hidden relative overflow-hidden"
+          className={cn(
+            'flex items-center gap-2 bg-[#e50914] text-white px-3 py-1.5 rounded shadow-2xl overflow-hidden relative overflow-hidden',
+            compact && 'px-2 py-1'
+          )}
         >
            <motion.div 
              animate={{ opacity: [1, 0.4, 1] }}
@@ -296,7 +346,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, poster, autoPlay = true 
             </div>
 
             {/* Bottom Controls */}
-            <div className="absolute bottom-0 left-0 w-full p-6 pb-8 md:pb-6 flex items-center justify-between pointer-events-auto">
+            <div
+              className={cn(
+                'absolute bottom-0 left-0 w-full flex items-center justify-between pointer-events-auto',
+                compact ? 'p-3 pb-4' : 'p-6 pb-8 md:pb-6'
+              )}
+            >
               <div className="flex items-center gap-6">
                 <button 
                   onClick={togglePlay}

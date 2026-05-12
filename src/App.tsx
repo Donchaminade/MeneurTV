@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { UserProvider, useUser } from './lib/UserContext';
+import { PiPProvider } from './lib/PiPContext';
+import FloatingPlayer from './components/FloatingPlayer';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import Favorites from './pages/Favorites';
@@ -37,53 +39,56 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <Router>
-      <div className="min-h-screen bg-[#080808] text-white font-sans selection:bg-[#e50914]/30 pb-20 md:pb-0">
-        {accountDisabledBanner && (
-          <div
-            role="alert"
-            className="fixed top-0 inset-x-0 z-[300] flex items-center justify-between gap-4 bg-red-900/95 border-b border-red-500/40 px-4 py-3 text-sm text-white shadow-lg"
+    <div className="min-h-screen bg-[#080808] text-white font-sans selection:bg-[#e50914]/30 pb-20 md:pb-0">
+      {accountDisabledBanner && (
+        <div
+          role="alert"
+          className="fixed top-0 inset-x-0 z-[300] flex items-center justify-between gap-4 bg-red-900/95 border-b border-red-500/40 px-4 py-3 text-sm text-white shadow-lg"
+        >
+          <span className="font-medium">{accountDisabledBanner}</span>
+          <button
+            type="button"
+            onClick={() => setAccountDisabledBanner(null)}
+            className="shrink-0 text-[10px] font-black uppercase tracking-widest text-white/80 hover:text-white"
           >
-            <span className="font-medium">{accountDisabledBanner}</span>
-            <button
-              type="button"
-              onClick={() => setAccountDisabledBanner(null)}
-              className="shrink-0 text-[10px] font-black uppercase tracking-widest text-white/80 hover:text-white"
-            >
-              Fermer
-            </button>
-          </div>
-        )}
-        <Navbar />
-        <main className="pt-20 pb-12 px-4 md:px-8 max-w-screen-2xl mx-auto">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/channels" element={<Channels />} />
-            <Route path="/search" element={<Search />} />
-            <Route path="/favorites" element={user ? <Favorites /> : <Navigate to="/" />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/donate" element={<Donate />} />
-            <Route path="/admin" element={<Admin />} />
-            <Route path="/channel/:id" element={<ChannelDetail />} />
-          </Routes>
-        </main>
-        <BottomNav />
-        <InstallPwaPrompt />
-        <DonationPopup />
-        <AuthModal 
-          isOpen={authModal.isOpen} 
-          onClose={authModal.close} 
-          initialMode={authModal.mode} 
-        />
-      </div>
-    </Router>
+            Fermer
+          </button>
+        </div>
+      )}
+      <Navbar />
+      <main className="pt-20 pb-12 px-4 md:px-8 max-w-screen-2xl mx-auto">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/channels" element={<Channels />} />
+          <Route path="/search" element={<Search />} />
+          <Route path="/favorites" element={user ? <Favorites /> : <Navigate to="/" />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/donate" element={<Donate />} />
+          <Route path="/admin" element={<Admin />} />
+          <Route path="/channel/:id" element={<ChannelDetail />} />
+        </Routes>
+      </main>
+      <BottomNav />
+      <InstallPwaPrompt />
+      <DonationPopup />
+      <AuthModal
+        isOpen={authModal.isOpen}
+        onClose={authModal.close}
+        initialMode={authModal.mode}
+      />
+      <FloatingPlayer />
+    </div>
   );
 };
 
 export default function App() {
   return (
     <UserProvider>
-      <AppContent />
+      <Router>
+        <PiPProvider>
+          <AppContent />
+        </PiPProvider>
+      </Router>
     </UserProvider>
   );
 }

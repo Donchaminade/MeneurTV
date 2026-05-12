@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { iptvService, Channel } from '../lib/iptvApi';
 import VideoPlayer from '../components/VideoPlayer';
 import RatingSystem from '../components/RatingSystem';
 import { useUser } from '../lib/UserContext';
-import { Heart, Info, Share2, MessageCircle, Tv, ArrowLeft, ChevronRight, Play, Shield } from 'lucide-react';
+import { usePiP } from '../lib/PiPContext';
+import { Heart, Info, Share2, Tv, ArrowLeft, ChevronRight, Play, Shield, PictureInPicture2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -55,9 +56,15 @@ const ShareButton: React.FC = () => {
 
 const ChannelDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { startPip, stopPip } = usePiP();
   const [channel, setChannel] = useState<Channel | null>(null);
   const [recommendations, setRecommendations] = useState<Channel[]>([]);
   const { profile, toggleFavorite, logView, authModal } = useUser();
+
+  useEffect(() => {
+    stopPip();
+  }, [id, stopPip]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -71,7 +78,7 @@ const ChannelDetail: React.FC = () => {
         // Find related channels
         const related = allChannels
           .filter(c => c.id !== found.id && c.categories.some(cat => found.categories.includes(cat)))
-          .slice(0, 10);
+          .slice(0, 40);
         setRecommendations(related);
       }
     };
@@ -89,14 +96,37 @@ const ChannelDetail: React.FC = () => {
 
   const isRestricted = !profile;
 
+  const goHomeWithMini = () => {
+    if (!channel.stream_url || isRestricted) return;
+    startPip({
+      id: channel.id,
+      name: channel.name,
+      stream_url: channel.stream_url,
+      logo: channel.logo,
+    });
+    navigate('/');
+  };
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-      {/* Player Section */}
-      <div className="lg:col-span-2 space-y-8">
-        <Link to="/" className="inline-flex items-center gap-2 text-gray-500 hover:text-white transition-colors text-xs font-black uppercase tracking-widest">
-          <ArrowLeft size={14} /> Retour à l'accueil
-        </Link>
-        
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12 lg:items-start">
+      <div className="lg:col-span-2 space-y-8 lg:sticky lg:top-24 self-start w-full min-w-0">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link to="/" className="inline-flex items-center gap-2 text-gray-500 hover:text-white transition-colors text-xs font-black uppercase tracking-widest">
+            <ArrowLeft size={14} /> Retour à l'accueil
+          </Link>
+          {!isRestricted && channel.stream_url && (
+            <button
+              type="button"
+              onClick={goHomeWithMini}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-gray-300 hover:border-[#e50914]/40 hover:text-white transition-colors"
+              title="Continuer la lecture dans un mini lecteur en bas de l'écran"
+            >
+              <PictureInPicture2 size={16} className="text-[#e50914]" />
+              Accueil + mini lecteur
+            </button>
+          )}
+        </div>
+
         <div className="shadow-[0_20px_80px_rgba(0,0,0,0.8)] rounded-2xl overflow-hidden relative">
           {isRestricted ? (
             <div className="aspect-video bg-black/40 border border-white/5 flex flex-col items-center justify-center text-center p-8 space-y-6">
@@ -205,12 +235,11 @@ const ChannelDetail: React.FC = () => {
         </div>
       </div>
 
-      {/* Sidebar Recommendations */}
-      <div className="space-y-8">
-        <h3 className="text-sm font-black uppercase tracking-widest flex items-center justify-between">
+      <aside className="flex flex-col min-h-0 min-w-0 lg:max-h-[calc(100vh-6rem)]">
+        <h3 className="text-sm font-black uppercase tracking-widest flex items-center justify-between shrink-0 mb-4">
           Plus de {channel.categories[0]} <ChevronRight size={14} className="text-[#e50914]" />
         </h3>
-        <div className="space-y-4">
+        <div className="overflow-y-auto overflow-x-hidden flex-1 min-h-0 pr-1 -mr-0.5 space-y-4 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.2)_transparent]">
           {recommendations.map(rec => (
             <Link 
               key={rec.id} 
@@ -242,7 +271,7 @@ const ChannelDetail: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
+      </aside>
     </div>
   );
 };

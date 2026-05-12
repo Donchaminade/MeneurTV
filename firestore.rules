@@ -15,8 +15,20 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    // Admin côté app = souvent `users/{uid}.isAdmin` ; la collection `admins/` sert aussi (promotion, règles historiques).
     function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+        )
+      );
+    }
+
+    function hasValidCreatedAtOnCreate() {
+      return incoming().createdAt == request.time ||
+        (incoming().createdAt is timestamp && incoming().createdAt <= request.time);
     }
 
     function isValidId(id) {
@@ -44,7 +56,8 @@ service cloud.firestore {
                (data.photoURL == null || (data.photoURL is string && data.photoURL.size() <= 500)) &&
                (data.phoneNumber == null || (data.phoneNumber is string && data.phoneNumber.size() <= 20)) &&
                (data.isProfileComplete == null || data.isProfileComplete is bool) &&
-               data.createdAt is timestamp;
+               // serverTimestamp() : parfois pas reconnu comme `timestamp` avant résolution ; == request.time est le cas normal.
+               (data.createdAt is timestamp || data.createdAt == request.time);
       }
 
       allow get: if isOwner(userId) || isAdmin();
@@ -52,12 +65,12 @@ service cloud.firestore {
       allow create: if isOwner(userId) && 
                       isValidUser(incoming()) && 
                       (incoming().isAdmin == false || request.auth.token.email == 'chaminade.dondah.adjolou@gmail.com') &&
-                      incoming().createdAt == request.time;
+                      hasValidCreatedAtOnCreate();
       // Admin crée un profil pour un autre uid (compte créé via Auth secondaire côté app)
       allow create: if isAdmin() &&
                       isValidUser(incoming()) &&
                       request.auth.uid != userId &&
-                      incoming().createdAt == request.time;
+                      hasValidCreatedAtOnCreate();
       allow update: if isOwner(userId) && 
                       isValidUser(incoming()) &&
                       incoming().isAdmin == existing().isAdmin &&

@@ -81,6 +81,14 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         setProfile(data);
 
+        if (data.isAdmin === true && user.email) {
+          try {
+            await setDoc(adminDocRef, { email: user.email }, { merge: true });
+          } catch {
+            /* alignement admins/ optionnel si règles pas encore déployées */
+          }
+        }
+
         // Check if user should be admin but isn't marked yet in Firestore (for local state)
         if (user.email === ADMIN_EMAIL && !data.isAdmin) {
             // Note: Rules allow update only for current fields or admin. 
