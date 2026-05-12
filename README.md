@@ -6,12 +6,22 @@ MeneurTV est une application web moderne et performante conçue pour offrir la m
 
 ## 🚀 Fonctionnalités Clés
 
-- **Streaming Haute Fidélité** : Support multi-flux avec lecteur HLS optimisé.
+- **Streaming Haute Fidélité** : Support multi-flux avec lecteur HLS optimisé (PiP natif navigateur, mini-lecteur in-app, fenêtre flottante `/pip-player` pour poursuivre la lecture dans une autre fenêtre).
 - **Grands Championnats** : Accès direct aux meilleures chaînes de sport (LaLiga, Champions League, Bundesliga).
-- **Expérience Personnalisée** : Système de favoris, profils utilisateurs et historique de visionnage.
+- **Expérience Personnalisée** : Favoris et notes (étoiles) avec persistance locale (`localStorage`) en complément de Firestore ; profils utilisateurs et historique de visionnage.
+- **Recherche & catalogue** : Recherche avancée et liste des chaînes avec pagination d’affichage (« Voir plus », lots de 50) et confort mobile (clavier virtuel : défilement vers les résultats, marge basse via `VisualViewport`).
 - **Progressive Web App (PWA)** : Installez MeneurTV sur votre écran d'accueil pour une expérience native sur mobile et desktop.
 - **Terminal Admin Sécurisé** : Gestion complète des chaînes, des utilisateurs et des statistiques de trafic.
 - **Mode Sécure** : Authentification via Google ou Email/Mot de passe sécurisé par Firebase.
+
+## 💻 Développement
+
+```bash
+npm install
+npm run dev    # Vite, port 3000 par défaut (voir package.json)
+npm run build
+npm run lint   # tsc --noEmit
+```
 
 ## 🛠️ Stack Technique
 

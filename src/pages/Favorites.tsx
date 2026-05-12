@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { iptvService, Channel } from '../lib/iptvApi';
 import { useUser } from '../lib/UserContext';
+import { getFavoriteIdsForDisplay } from '../lib/favoritesLocal';
 import { signIn } from '../lib/firebase';
 import { Link } from 'react-router-dom';
 import { Heart, Play, Tv, ArrowRight, Ghost, ChevronRight } from 'lucide-react';
@@ -10,7 +11,7 @@ import { cn } from '../lib/utils';
 const Favorites: React.FC = () => {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
-  const { profile, toggleFavorite } = useUser();
+  const { profile, user, toggleFavorite } = useUser();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -22,10 +23,10 @@ const Favorites: React.FC = () => {
   }, []);
 
   const favoriteChannels = useMemo(() => {
-    if (!profile) return [];
-    const ids = profile.favorites ?? [];
+    if (!profile || !user) return [];
+    const ids = getFavoriteIdsForDisplay(user.uid, profile.favorites);
     return channels.filter((c) => ids.includes(c.id));
-  }, [channels, profile]);
+  }, [channels, profile, user]);
 
   if (loading) {
     return (

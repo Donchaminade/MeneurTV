@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
 import { doc, onSnapshot, setDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
+import { resolveFavoriteIds, writeStoredFavorites } from './favoritesLocal';
 
 interface UserProfile {
   email: string;
@@ -65,9 +66,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubscribe = onSnapshot(userDocRef, async (docSnap) => {
       if (docSnap.exists()) {
         const raw = docSnap.data() as UserProfile;
+        const cloudFav = Array.isArray(raw.favorites) ? raw.favorites : [];
         const data: UserProfile = {
           ...raw,
-          favorites: Array.isArray(raw.favorites) ? raw.favorites : [],
+          favorites: resolveFavoriteIds(user.uid, cloudFav),
         };
         if (data.isActive === false) {
           try {
@@ -125,16 +127,20 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user]);
 
   const toggleFavorite = async (channelId: string) => {
-    if (!user || !profile) return;
-    const current = profile.favorites ?? [];
+    if (!user) return;
+    const uid = user.uid;
+    const current = resolveFavoriteIds(uid, profile?.favorites);
     const newFavorites = current.includes(channelId)
       ? current.filter((id) => id !== channelId)
       : [...current, channelId];
 
+    writeStoredFavorites(uid, newFavorites);
+    setProfile((prev) => (prev ? { ...prev, favorites: newFavorites } : prev));
+
     try {
-      await setDoc(doc(db, 'users', user.uid), { favorites: newFavorites }, { merge: true });
+      await setDoc(doc(db, 'users', uid), { favorites: newFavorites }, { merge: true });
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
+      console.warn('[MeneurTV] Favoris enregistrés localement ; échec sync Firestore.', error);
     }
   };
 

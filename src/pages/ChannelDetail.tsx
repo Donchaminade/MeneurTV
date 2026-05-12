@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { iptvService, Channel } from '../lib/iptvApi';
 import VideoPlayer from '../components/VideoPlayer';
 import RatingSystem from '../components/RatingSystem';
 import { useUser } from '../lib/UserContext';
 import { usePiP } from '../lib/PiPContext';
+import { getFavoriteIdsForDisplay } from '../lib/favoritesLocal';
 import { Heart, Info, Share2, Tv, ArrowLeft, ChevronRight, Play, Shield, PictureInPicture2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
@@ -60,7 +61,12 @@ const ChannelDetail: React.FC = () => {
   const { startPip, stopPip } = usePiP();
   const [channel, setChannel] = useState<Channel | null>(null);
   const [recommendations, setRecommendations] = useState<Channel[]>([]);
-  const { profile, toggleFavorite, logView, authModal } = useUser();
+  const { profile, user, toggleFavorite, logView, authModal } = useUser();
+
+  const favoriteIds = useMemo(() => {
+    if (!user) return [];
+    return getFavoriteIdsForDisplay(user.uid, profile?.favorites);
+  }, [user, profile?.favorites]);
 
   useEffect(() => {
     stopPip();
@@ -147,9 +153,17 @@ const ChannelDetail: React.FC = () => {
                 </button>
             </div>
           ) : (
-            <VideoPlayer url={channel.stream_url!} poster={channel.logo} />
+            <VideoPlayer url={channel.stream_url!} poster={channel.logo} popoutTitle={channel.name} />
           )}
         </div>
+        {!isRestricted && channel.stream_url && (
+          <p className="text-[9px] text-gray-500 leading-relaxed max-w-2xl">
+            <span className="font-black uppercase tracking-widest text-gray-600">Lecture continue :</span> dans le
+            lecteur, « fenêtre flottante » ouvre une autre fenêtre du navigateur (pratique sur mobile et entre onglets).
+            L’icône PiP ouvre la vidéo au-dessus du bureau si le navigateur le propose. « Accueil + mini lecteur » garde
+            un mini lecteur dans la page.
+          </p>
+        )}
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 p-4 sm:p-8 rounded-2xl glass border-white/5">
           <div className="flex items-center gap-4 sm:gap-6">
@@ -180,7 +194,7 @@ const ChannelDetail: React.FC = () => {
           <div className="flex items-center gap-2 sm:gap-3">
             <button 
               onClick={() => {
-                if (!profile) {
+                if (!user) {
                   alert("Veuillez vous connecter pour ajouter des favoris.");
                   return;
                 }
@@ -188,13 +202,13 @@ const ChannelDetail: React.FC = () => {
               }}
               className={cn(
                 "flex-1 md:flex-none flex items-center justify-center gap-2 px-6 sm:px-8 py-3 sm:py-3.5 rounded font-black text-[10px] sm:text-xs uppercase tracking-widest transition-all active:scale-95 border min-w-[120px]",
-                profile?.favorites.includes(channel.id)
+                favoriteIds.includes(channel.id)
                   ? "bg-[#e50914] border-[#e50914] text-white"
                   : "bg-white/5 border-white/10 text-white hover:bg-white/10"
               )}
             >
-              <Heart size={18} className={profile?.favorites.includes(channel.id) ? 'fill-white' : ''} />
-              {profile?.favorites.includes(channel.id) ? 'Favoris' : 'Ajouter'}
+              <Heart size={18} className={favoriteIds.includes(channel.id) ? 'fill-white' : ''} />
+              {favoriteIds.includes(channel.id) ? 'Favoris' : 'Ajouter'}
             </button>
             <ShareButton />
           </div>

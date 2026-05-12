@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { iptvService, Channel, Category, Language } from '../lib/iptvApi';
 import { Tv, Play, Heart, Filter, Globe, Search, Languages } from 'lucide-react';
 import { useUser } from '../lib/UserContext';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { useVisualViewportInset } from '../hooks/useVisualViewportInset';
+import { CHANNELS_PAGE_SIZE } from '../lib/channelListPaging';
 
 const Channels: React.FC = () => {
   const { profile, toggleFavorite } = useUser();
@@ -18,6 +20,13 @@ const Channels: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedCountry, setSelectedCountry] = useState('all');
   const [selectedLanguage, setSelectedLanguage] = useState('all');
+  const [visibleCount, setVisibleCount] = useState(CHANNELS_PAGE_SIZE);
+
+  const resultsAnchorRef = useRef<HTMLDivElement>(null);
+  const skipScrollOnMountRef = useRef(true);
+  const keyboardInset = useVisualViewportInset();
+
+  const filterSignature = `${searchTerm}|${selectedCategory}|${selectedCountry}|${selectedLanguage}`;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -68,6 +77,35 @@ const Channels: React.FC = () => {
     return sorted;
   }, [channels, searchTerm, selectedCategory, selectedCountry, selectedLanguage]);
 
+  useEffect(() => {
+    setVisibleCount(CHANNELS_PAGE_SIZE);
+  }, [filterSignature]);
+
+  const displayedChannels = useMemo(
+    () => filteredChannels.slice(0, visibleCount),
+    [filteredChannels, visibleCount]
+  );
+
+  const scrollResultsIntoView = useCallback(() => {
+    const el = resultsAnchorRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (skipScrollOnMountRef.current) {
+      skipScrollOnMountRef.current = false;
+      return;
+    }
+    if (filteredChannels.length === 0) return;
+    const t = window.setTimeout(() => {
+      scrollResultsIntoView();
+    }, 280);
+    return () => window.clearTimeout(t);
+  }, [filterSignature, filteredChannels.length, scrollResultsIntoView]);
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-32 space-y-4">
@@ -77,8 +115,11 @@ const Channels: React.FC = () => {
     );
   }
 
+  const bottomPad =
+    keyboardInset > 12 ? keyboardInset + 96 : undefined;
+
   return (
-    <div className="space-y-12 pb-20">
+    <div className="space-y-12 pb-20" style={bottomPad !== undefined ? { paddingBottom: bottomPad } : undefined}>
       <header className="space-y-4">
          <div className="flex items-center gap-3">
             <div className="w-1.5 h-6 sm:h-8 bg-[#e50914] rounded-full" />
@@ -93,10 +134,19 @@ const Channels: React.FC = () => {
           <div className="relative flex-1 min-w-[200px]">
              <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
              <input 
-              type="text" 
+              type="search"
+              enterKeyHint="search"
               placeholder="Rechercher une chaîne..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  (e.target as HTMLInputElement).blur();
+                  scrollResultsIntoView();
+                }
+              }}
+              aria-label="Rechercher une chaîne"
               className="w-full bg-white/5 border border-white/10 rounded-full py-2 sm:py-2.5 pl-12 pr-4 text-xs sm:text-sm font-medium focus:outline-none focus:border-[#e50914] transition-all"
              />
           </div>
@@ -248,10 +298,18 @@ const Channels: React.FC = () => {
             {filteredChannels.length} CHAÎNES DISPONIBLES
           </div>
         </div>
+        <p className="md:hidden text-[9px] font-black uppercase tracking-widest text-gray-500 pt-1">
+          {Math.min(visibleCount, filteredChannels.length)} affichée{Math.min(visibleCount, filteredChannels.length) > 1 ? 's' : ''} sur {filteredChannels.length}
+        </p>
       </div>
 
+      <div
+        ref={resultsAnchorRef}
+        className="scroll-mt-40 sm:scroll-mt-36 md:scroll-mt-28"
+        aria-label="Liste des chaînes"
+      >
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
-        {filteredChannels.map((channel) => (
+        {displayedChannels.map((channel) => (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -276,6 +334,12 @@ const Channels: React.FC = () => {
             </Link>
 
             <button 
+              type="button"
+              aria-label={
+                (profile?.favorites ?? []).includes(channel.id)
+                  ? `Retirer ${channel.name} des favoris`
+                  : `Ajouter ${channel.name} aux favoris`
+              }
               onClick={() => {
                 if (!profile) {
                   alert("Veuillez vous connecter pour ajouter des favoris.");
@@ -304,11 +368,21 @@ const Channels: React.FC = () => {
         ))}
       </div>
 
-      {filteredChannels.length > 150 && (
-         <div className="py-12 text-center border-t border-white/5 mt-12">
-            <p className="text-gray-500 text-xs font-black uppercase tracking-[0.2em]">Utilisez les filtres pour affiner votre recherche parmi {filteredChannels.length} chaînes</p>
-         </div>
+      {visibleCount < filteredChannels.length && (
+        <div className="mt-10 flex flex-col items-center gap-3">
+          <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest text-center">
+            Affichage de {displayedChannels.length} sur {filteredChannels.length} chaînes
+          </p>
+          <button
+            type="button"
+            onClick={() => setVisibleCount((c) => c + CHANNELS_PAGE_SIZE)}
+            className="bg-white/5 border border-white/15 text-white px-8 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:border-[#e50914]/50 hover:bg-[#e50914]/10 transition-all active:scale-[0.98] shadow-lg"
+          >
+            Voir plus
+          </button>
+        </div>
       )}
+      </div>
 
       {filteredChannels.length === 0 && (
         <div className="text-center py-40 bg-white/5 rounded-3xl border border-dashed border-white/10">

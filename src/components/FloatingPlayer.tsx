@@ -109,6 +109,7 @@ const FloatingPlayer: React.FC = () => {
           compact
           className="rounded-none ring-0 shadow-none"
           pipNavigateOnVideoClick={openFullChannel}
+          popoutTitle={activePip.name}
         />
       </div>
     </div>

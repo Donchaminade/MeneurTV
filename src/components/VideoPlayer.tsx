@@ -1,6 +1,17 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
-import { Settings, Maximize, Minimize, Volume2, VolumeX, Play, Pause, Loader2 } from 'lucide-react';
+import {
+  Settings,
+  Maximize,
+  Minimize,
+  Volume2,
+  VolumeX,
+  Play,
+  Pause,
+  Loader2,
+  PictureInPicture,
+  SquareArrowOutUpRight,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 
@@ -13,6 +24,12 @@ interface VideoPlayerProps {
   className?: string;
   /** Mini-lecteur : clic sur la vidéo = retour page chaîne */
   pipNavigateOnVideoClick?: () => void;
+  /** PiP natif navigateur (fenêtre au-dessus du bureau) — Chrome / Edge / Safari récents */
+  showNativePipButton?: boolean;
+  /** Titre affiché dans la fenêtre flottante / PiP */
+  popoutTitle?: string;
+  /** Ouvre une petite fenêtre navigateur (lecture par-dessus d’autres apps si le navigateur le permet) */
+  allowPopout?: boolean;
 }
 
 const VideoPlayer: React.FC<VideoPlayerProps> = ({
@@ -22,6 +39,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   compact = false,
   className,
   pipNavigateOnVideoClick,
+  showNativePipButton = true,
+  popoutTitle,
+  allowPopout = true,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -37,6 +57,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isVolumeHovered, setIsVolumeHovered] = useState(false);
   const [hlsInstance, setHlsInstance] = useState<Hls | null>(null);
+  const [isNativePip, setIsNativePip] = useState(false);
+
+  const canUseNativePip =
+    typeof document !== 'undefined' &&
+    'pictureInPictureEnabled' in document &&
+    document.pictureInPictureEnabled;
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
@@ -46,6 +72,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
 
     // Initialize Web Audio API for volume boost
     if (!audioContextRef.current) {
@@ -167,6 +195,19 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   }, [url, autoPlay]);
 
   useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const onEnter = () => setIsNativePip(true);
+    const onLeave = () => setIsNativePip(false);
+    video.addEventListener('enterpictureinpicture', onEnter);
+    video.addEventListener('leavepictureinpicture', onLeave);
+    return () => {
+      video.removeEventListener('enterpictureinpicture', onEnter);
+      video.removeEventListener('leavepictureinpicture', onLeave);
+    };
+  }, [url]);
+
+  useEffect(() => {
     const handleFullscreenChange = () => {
       const isFull = !!document.fullscreenElement;
       setIsFullscreen(isFull);
@@ -253,6 +294,51 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   };
 
+  const openPopoutWindow = useCallback(() => {
+    const LS_PIP_LAUNCH = 'meneurtv_pip_launch';
+    try {
+      localStorage.setItem(
+        LS_PIP_LAUNCH,
+        JSON.stringify({
+          url,
+          poster,
+          name: popoutTitle ?? undefined,
+          ts: Date.now(),
+        })
+      );
+    } catch (e) {
+      console.warn('[MeneurTV] Impossible de préparer la fenêtre flottante.', e);
+      return;
+    }
+    const base = (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
+    const pipUrl = `${window.location.origin}${base}/pip-player`;
+    const w = Math.min(560, Math.round(window.screen.availWidth * 0.45));
+    const h = Math.min(320, Math.round(window.screen.availHeight * 0.38));
+    const left = Math.max(0, window.screenX + window.outerWidth - w - 16);
+    const top = Math.max(0, window.screenY + 72);
+    const features = `width=${w},height=${h},left=${left},top=${top},popup=yes,noopener,noreferrer`;
+    const win = window.open(pipUrl, 'meneurtvPip', features);
+    if (!win) {
+      window.alert(
+        'Autorise les fenêtres popup pour ce site afin d’ouvrir le lecteur dans une fenêtre séparée (visible en changeant d’onglet ou d’appli).'
+      );
+    }
+  }, [url, poster, popoutTitle]);
+
+  const toggleNativePip = async () => {
+    const v = videoRef.current;
+    if (!v || !canUseNativePip) return;
+    try {
+      if (document.pictureInPictureElement === v) {
+        await document.exitPictureInPicture();
+      } else {
+        await v.requestPictureInPicture();
+      }
+    } catch (e) {
+      console.warn('[MeneurTV] PiP système indisponible (essayez sans extension ou autre navigateur).', e);
+    }
+  };
+
   const handleMouseMove = () => {
     setShowControls(true);
     if (controlsTimeoutRef.current) {
@@ -289,6 +375,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         className="w-full h-full object-contain cursor-pointer"
         playsInline
         preload="auto"
+        disablePictureInPicture={false}
       />
 
       {error ? (
@@ -383,6 +470,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
                       step="0.05"
                       value={volume}
                       onChange={handleVolumeChange}
+                      aria-label="Volume"
+                      title="Volume"
                       className="w-24 h-1 bg-white/20 rounded-full appearance-none cursor-pointer accent-[#e50914]"
                     />
                     <span className={cn(
@@ -395,7 +484,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center gap-6">
+              <div className={cn('flex items-center', compact ? 'gap-3' : 'gap-6')}>
                 {/* Quality Selector */}
                 {availableQualities.length > 1 && (
                   <div className="relative">
@@ -435,6 +524,41 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
                       )}
                     </AnimatePresence>
                   </div>
+                )}
+
+                {allowPopout && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openPopoutWindow();
+                    }}
+                    className={cn(
+                      'text-white hover:text-[#e50914] transition-colors touch-manipulation',
+                      compact && 'p-1'
+                    )}
+                    title="Fenêtre flottante (autre fenêtre navigateur, pratique sur mobile et multi-onglets)"
+                  >
+                    <SquareArrowOutUpRight size={compact ? 20 : 22} />
+                  </button>
+                )}
+
+                {showNativePipButton && canUseNativePip && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void toggleNativePip();
+                    }}
+                    className={cn(
+                      'text-white hover:text-[#e50914] transition-colors touch-manipulation',
+                      isNativePip && 'text-[#e50914]',
+                      compact && 'p-1'
+                    )}
+                    title={isNativePip ? 'Quitter le PiP bureau' : 'PiP bureau (lecture au-dessus des fenêtres)'}
+                  >
+                    <PictureInPicture size={compact ? 20 : 22} />
+                  </button>
                 )}
 
                 <button 

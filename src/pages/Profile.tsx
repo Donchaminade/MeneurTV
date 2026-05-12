@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useUser } from '../lib/UserContext';
+import { getFavoriteIdsForDisplay } from '../lib/favoritesLocal';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { motion, AnimatePresence } from 'motion/react';
@@ -102,7 +103,11 @@ const Profile: React.FC = () => {
     );
   }
 
-  const favoriteChannels = channels.filter(c => profile?.favorites.includes(c.id));
+  const favoriteChannels = useMemo(() => {
+    if (!user) return [];
+    const ids = getFavoriteIdsForDisplay(user.uid, profile?.favorites);
+    return channels.filter((c) => ids.includes(c.id));
+  }, [channels, user, profile?.favorites]);
 
   return (
     <div className="max-w-6xl mx-auto space-y-12 pb-20">

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { UserProvider, useUser } from './lib/UserContext';
 import { PiPProvider } from './lib/PiPContext';
 import FloatingPlayer from './components/FloatingPlayer';
@@ -8,6 +8,7 @@ import Home from './pages/Home';
 import Favorites from './pages/Favorites';
 import Admin from './pages/Admin';
 import ChannelDetail from './pages/ChannelDetail';
+import PipPlayer from './pages/PipPlayer';
 import Search from './pages/Search';
 import Channels from './pages/Channels';
 import Profile from './pages/Profile';
@@ -19,6 +20,7 @@ import AuthModal from './components/AuthModal';
 import BottomNav from './components/BottomNav';
 
 const AppContent: React.FC = () => {
+  const location = useLocation();
   const { user, loading, authModal } = useUser();
   const [accountDisabledBanner, setAccountDisabledBanner] = useState<string | null>(null);
 
@@ -29,6 +31,10 @@ const AppContent: React.FC = () => {
       setAccountDisabledBanner('Votre compte a été désactivé. Contactez un administrateur pour rétablir l’accès.');
     }
   }, [loading, user]);
+
+  if (location.pathname === '/pip-player') {
+    return <PipPlayer />;
+  }
 
   if (loading) {
     return (
@@ -66,6 +72,7 @@ const AppContent: React.FC = () => {
           <Route path="/donate" element={<Donate />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/channel/:id" element={<ChannelDetail />} />
+          <Route path="/pip-player" element={<PipPlayer />} />
         </Routes>
       </main>
       <BottomNav />
