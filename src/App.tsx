@@ -19,6 +19,7 @@ const Search = lazy(() => import('./pages/Search'));
 const Channels = lazy(() => import('./pages/Channels'));
 const Profile = lazy(() => import('./pages/Profile'));
 const Donate = lazy(() => import('./pages/Donate'));
+const PourVous = lazy(() => import('./pages/PourVous'));
 
 const AppContent: React.FC = () => {
   const location = useLocation();
@@ -71,6 +72,7 @@ const AppContent: React.FC = () => {
         <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/pour-vous" element={<PourVous />} />
             <Route path="/channels" element={<Channels />} />
             <Route path="/search" element={<Search />} />
             <Route path="/favorites" element={user ? <Favorites /> : <Navigate to="/" />} />

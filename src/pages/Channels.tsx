@@ -59,7 +59,7 @@ const Channels: React.FC = () => {
       const matchSearch = channelMatchesSmartQuery(c, searchTerm);
       const matchCat = selectedCategory === 'all' || c.categories.includes(selectedCategory);
       const matchCountry = selectedCountry === 'all' || c.country === selectedCountry;
-      const matchLang = selectedLanguage === 'all' || c.languages.includes(selectedLanguage);
+      const matchLang = selectedLanguage === 'all' || (c.languages ?? []).includes(selectedLanguage);
       return matchSearch && matchCat && matchCountry && matchLang;
     });
 

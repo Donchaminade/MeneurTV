@@ -6,6 +6,7 @@ import RatingSystem from '../components/RatingSystem';
 import { useUser } from '../lib/UserContext';
 import { usePiP } from '../lib/PiPContext';
 import { getFavoriteIdsForDisplay } from '../lib/favoritesLocal';
+import { recordRecentChannel } from '../lib/recentChannelsLocal';
 import { Heart, Info, Share2, Tv, ArrowLeft, ChevronRight, Play, Shield, PictureInPicture2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
@@ -15,42 +16,52 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-const ShareButton: React.FC = () => {
+const ShareButton: React.FC<{ title: string }> = ({ title }) => {
   const [copied, setCopied] = useState(false);
+  const [mode, setMode] = useState<'idle' | 'shared'>('idle');
 
-  const handleShare = async () => {
+  const handleClick = async () => {
+    const url = window.location.href;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `MeneurTV — ${title}`, text: title, url });
+        setMode('shared');
+        window.setTimeout(() => setMode('idle'), 2000);
+        return;
+      } catch (err) {
+        const e = err as { name?: string };
+        if (e?.name === 'AbortError') return;
+      }
+    }
     try {
-      await navigator.clipboard.writeText(window.location.href);
+      await navigator.clipboard.writeText(url);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      window.setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('Failed to copy: ', err);
+      console.error('Partage / copie impossible :', err);
     }
   };
 
   return (
-    <button 
-      onClick={handleShare}
+    <button
+      type="button"
+      onClick={handleClick}
+      aria-label="Partager ou copier le lien de la chaîne"
       className="relative p-3.5 rounded glass border-white/10 text-white hover:bg-[#e50914]/10 transition-colors group"
     >
       <AnimatePresence>
-        {copied ? (
+        {copied || mode === 'shared' ? (
           <motion.span
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             className="absolute -top-10 left-1/2 -translate-x-1/2 bg-[#e50914] text-white text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded shadow-xl whitespace-nowrap"
           >
-            Lien copié !
+            {mode === 'shared' ? 'Partagé !' : 'Lien copié !'}
           </motion.span>
         ) : null}
       </AnimatePresence>
-      <Share2 size={18} className={cn("transition-transform", copied && "scale-0")} />
-      {copied && (
-        <div className="absolute inset-0 flex items-center justify-center">
-           <div className="w-1.5 h-1.5 bg-[#e50914] rounded-full animate-ping" />
-        </div>
-      )}
+      <Share2 size={18} className={cn('transition-transform', (copied || mode === 'shared') && 'scale-95')} />
     </button>
   );
 };
@@ -76,10 +87,12 @@ const ChannelDetail: React.FC = () => {
     const fetchData = async () => {
       await iptvService.loadData();
       const allChannels = iptvService.getEnrichedChannels();
-      const found = allChannels.find(c => c.id === id);
+      const rawId = id ? decodeURIComponent(id) : '';
+      const found = allChannels.find((c) => c.id === rawId);
       if (found) {
         setChannel(found);
         logView(found.id);
+        recordRecentChannel({ id: found.id, name: found.name, logo: found.logo });
         
         // Find related channels
         const related = allChannels
@@ -89,7 +102,7 @@ const ChannelDetail: React.FC = () => {
       }
     };
     fetchData();
-  }, [id]);
+  }, [id, logView]);
 
   if (!channel) {
     return (
@@ -210,7 +223,7 @@ const ChannelDetail: React.FC = () => {
               <Heart size={18} className={favoriteIds.includes(channel.id) ? 'fill-white' : ''} />
               {favoriteIds.includes(channel.id) ? 'Favoris' : 'Ajouter'}
             </button>
-            <ShareButton />
+            <ShareButton title={channel.name} />
           </div>
         </div>
 

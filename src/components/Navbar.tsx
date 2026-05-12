@@ -57,6 +57,7 @@ const Navbar: React.FC = () => {
 
   const navLinks = [
     { name: 'Accueil', path: '/' },
+    { name: 'Pour Vous', path: '/pour-vous' },
     { name: 'Favoris', path: '/favorites' },
     { name: 'Chaînes', path: '/channels' },
     { name: 'Recherche', path: '/search' },
@@ -79,10 +80,12 @@ const Navbar: React.FC = () => {
           </Link>
 
           <div className="hidden lg:flex items-center gap-8">
-            {visibleLinks.map(link => (
+            {visibleLinks.map((link) => (
               <Link
                 key={link.path}
                 to={link.path}
+                onMouseEnter={link.path === '/pour-vous' ? () => void import('../pages/PourVous') : undefined}
+                onFocus={link.path === '/pour-vous' ? () => void import('../pages/PourVous') : undefined}
                 className={`text-sm font-semibold transition-colors hover:text-white uppercase tracking-wider ${location.pathname === link.path ? 'text-white' : 'text-gray-400'}`}
               >
                 {link.name}

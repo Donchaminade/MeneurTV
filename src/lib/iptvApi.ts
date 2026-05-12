@@ -32,7 +32,35 @@ export interface Language {
   code: string;
 }
 
+/** Depuis avril 2025, les langues ne sont plus sur `channels` mais sur les flux (`feeds.json`). */
+export interface Feed {
+  channel: string;
+  id: string;
+  languages?: string[];
+}
+
 const BASE_URL = 'https://iptv-org.github.io/api';
+
+function mergeLanguagesByChannel(feeds: Feed[]): Map<string, string[]> {
+  const byChannel = new Map<string, Set<string>>();
+  for (const f of feeds) {
+    if (!f.channel || !Array.isArray(f.languages) || f.languages.length === 0) continue;
+    const key = f.channel.toLowerCase();
+    let set = byChannel.get(key);
+    if (!set) {
+      set = new Set();
+      byChannel.set(key, set);
+    }
+    for (const code of f.languages) {
+      if (code) set.add(code);
+    }
+  }
+  const out = new Map<string, string[]>();
+  for (const [k, set] of byChannel) {
+    out.set(k, [...set].sort());
+  }
+  return out;
+}
 
 class IPTVService {
   private channels: Channel[] = [];
@@ -57,13 +85,14 @@ class IPTVService {
         return response.json();
       };
 
-      const [channels, streams, logos, categories, languages, countries] = await Promise.all([
+      const [channels, streams, logos, categories, languages, countries, feeds] = await Promise.all([
         fetchJson(`${BASE_URL}/channels.json`),
         fetchJson(`${BASE_URL}/streams.json`),
         fetchJson(`${BASE_URL}/logos.json`),
         fetchJson(`${BASE_URL}/categories.json`),
         fetchJson(`${BASE_URL}/languages.json`),
         fetchJson(`${BASE_URL}/countries.json`),
+        fetchJson(`${BASE_URL}/feeds.json`) as Promise<Feed[]>,
       ]);
 
       this.channels = channels;
@@ -72,6 +101,8 @@ class IPTVService {
       this.categories = categories;
       this.languages = languages;
       this.countries = countries;
+
+      const langsByChannel = mergeLanguagesByChannel(feeds);
 
       // Pre-enrich channels
       const streamMap = new Map<string, string>();
@@ -105,8 +136,13 @@ class IPTVService {
                            streamMap.get(nameLower) ||
                            streamMap.get(idBase);
           
+          const feedLangs = langsByChannel.get(idLower) ?? [];
+          const legacy = Array.isArray(c.languages) ? c.languages : [];
+          const mergedLangs = [...new Set([...legacy, ...feedLangs])].sort();
+
           return {
             ...c,
+            languages: mergedLangs,
             stream_url: streamUrl,
             logo: logoMap.get(idLower) || logoMap.get(nameLower)
           };

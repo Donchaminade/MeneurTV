@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Search, Heart, Shield, User, Tv } from 'lucide-react';
+import { Home, Search, Heart, Shield, User, Tv, Sparkles } from 'lucide-react';
 import { useUser } from '../lib/UserContext';
 import { cn } from '../lib/utils';
 
@@ -10,6 +10,7 @@ const BottomNav: React.FC = () => {
 
   const navLinks = [
     { name: 'Home', path: '/', icon: Home },
+    { name: 'Pour vous', path: '/pour-vous', icon: Sparkles },
     { name: 'Chaînes', path: '/channels', icon: Tv },
     { name: 'Search', path: '/search', icon: Search },
     { name: 'Favorites', path: '/favorites', icon: Heart, protected: true },

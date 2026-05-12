@@ -77,7 +77,8 @@ const SearchPage: React.FC = () => {
 
       const matchesCountry = selectedCountry === 'all' || channel.country === selectedCountry;
 
-      const matchesLanguage = selectedLanguage === 'all' || channel.languages.includes(selectedLanguage);
+      const matchesLanguage =
+        selectedLanguage === 'all' || (channel.languages ?? []).includes(selectedLanguage);
 
       return matchesQuery && matchesCategory && matchesCountry && matchesLanguage;
     });
