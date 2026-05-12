@@ -137,8 +137,12 @@ const Home: React.FC = () => {
             initial={{ opacity: 0, scale: 1.1 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 1.5 }}
-            src={heroChannel.logo || `https://images.unsplash.com/photo-1522865080277-5154cc744459?auto=format&fit=crop&q=80&w=2000`} 
-            alt={heroChannel.name}
+            src={heroChannel.logo || `https://images.unsplash.com/photo-1522865080277-5154cc744459?auto=format&fit=crop&q=75&w=960`}
+            alt=""
+            fetchPriority="high"
+            decoding="async"
+            width={1920}
+            height={1080}
             className="w-full h-full object-cover blur-[2px] brightness-40"
           />
 
@@ -150,7 +154,7 @@ const Home: React.FC = () => {
                className="flex items-center gap-2"
             >
               <div className="bg-[#e50914] px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest shrink-0">EN DIRECT</div>
-              <div className="text-white/70 text-[10px] font-bold uppercase tracking-widest truncate">
+              <div className="text-white/80 text-[10px] font-bold uppercase tracking-widest truncate">
                 TENDANCE • {heroChannel.categories[0]}
               </div>
             </motion.div>
@@ -181,7 +185,9 @@ const Home: React.FC = () => {
                 <Play size={16} fill="black" /> Regarder
               </Link>
               <button 
+                type="button"
                 onClick={() => toggleFavorite(heroChannel.id)}
+                aria-label={profile?.favorites.includes(heroChannel.id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
                 className={cn(
                   "px-6 sm:px-8 py-2.5 sm:py-3 rounded border font-black text-[11px] sm:text-sm uppercase tracking-wider transition-all active:scale-95 flex items-center justify-center gap-2 min-w-[140px]",
                   profile?.favorites.includes(heroChannel.id) 
@@ -201,7 +207,10 @@ const Home: React.FC = () => {
       <div className="flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="flex items-center gap-3 overflow-x-auto pb-4 md:pb-0 w-full md:w-auto hide-scrollbar">
           <button 
+            type="button"
             onClick={() => setSelectedCategory('all')}
+            aria-pressed={selectedCategory === 'all'}
+            aria-label="Afficher toutes les catégories"
             className={cn(
               "px-5 py-2 rounded text-[11px] font-black uppercase tracking-widest transition-all border",
               selectedCategory === 'all' 
@@ -213,8 +222,11 @@ const Home: React.FC = () => {
           </button>
           {categories.slice(0, 15).map(cat => (
             <button
+              type="button"
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
+              aria-pressed={selectedCategory === cat.id}
+              aria-label={`Filtrer par catégorie ${cat.name}`}
               className={cn(
                 "px-5 py-2 rounded text-[11px] font-black uppercase tracking-widest transition-all border whitespace-nowrap",
                 selectedCategory === cat.id 
@@ -231,7 +243,9 @@ const Home: React.FC = () => {
            <div className="flex flex-wrap gap-2">
               {['FRA', 'ENG', 'ESP', 'ARA'].map(lang => (
                 <button 
+                  type="button"
                   key={lang}
+                  aria-label={`Filtrer par langue ${lang}`}
                   className="px-2 py-1 rounded bg-white/5 text-[9px] font-black text-gray-400 hover:bg-[#e50914]/10 hover:text-[#e50914] transition-all border border-white/5"
                 >
                   {lang}
@@ -250,11 +264,11 @@ const Home: React.FC = () => {
                 {row.name} <span className="text-[#e50914]">TV</span>
               </h2>
               <div className="flex gap-2">
-                 <button className="p-1 rounded-full bg-white/5 hover:bg-white/10 transition-colors">
-                    <ChevronRight className="rotate-180" size={18} />
+                 <button type="button" aria-label={`Défiler les chaînes ${row.name} vers la gauche`} className="p-1 rounded-full bg-white/5 hover:bg-white/10 transition-colors">
+                    <ChevronRight className="rotate-180" size={18} aria-hidden />
                  </button>
-                 <button className="p-1 rounded-full bg-white/5 hover:bg-white/10 transition-colors">
-                    <ChevronRight size={18} />
+                 <button type="button" aria-label={`Défiler les chaînes ${row.name} vers la droite`} className="p-1 rounded-full bg-white/5 hover:bg-white/10 transition-colors">
+                    <ChevronRight size={18} aria-hidden />
                  </button>
               </div>
             </div>
@@ -268,7 +282,15 @@ const Home: React.FC = () => {
                 >
                   <div className="aspect-video relative overflow-hidden bg-gradient-to-br from-white/5 to-transparent">
                     {channel.logo ? (
-                      <img src={channel.logo} alt={channel.name} className="w-full h-full object-contain p-4 sm:p-8 group-hover:blur-[2px] transition-all duration-500" />
+                      <img
+                        src={channel.logo}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        width={640}
+                        height={360}
+                        className="w-full h-full object-contain p-4 sm:p-8 group-hover:blur-[2px] transition-all duration-500"
+                      />
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center">
                         <Tv size={40} className="text-gray-800" />

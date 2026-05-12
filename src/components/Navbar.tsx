@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { Tv, Search, User, LogOut, ChevronDown, Menu, X, Heart, Shield, Play } from 'lucide-react';
+import { Tv, Search, User, LogOut, ChevronDown, Heart, Shield, Play } from 'lucide-react';
 import { useUser } from '../lib/UserContext';
 import { logOut } from '../lib/firebase';
 import { motion, AnimatePresence } from 'motion/react';
@@ -12,7 +12,6 @@ const Navbar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isScrolled, setIsScrolled] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   
   // Search State
@@ -20,6 +19,7 @@ const Navbar: React.FC = () => {
   const [suggestions, setSuggestions] = useState<Channel[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [allChannels, setAllChannels] = useState<Channel[]>([]);
+  const [catalogLoaded, setCatalogLoaded] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -27,13 +27,12 @@ const Navbar: React.FC = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  useEffect(() => {
-    const loadAll = async () => {
-      await iptvService.loadData();
-      setAllChannels(iptvService.getEnrichedChannels());
-    };
-    loadAll();
-  }, []);
+  const ensureSearchCatalog = React.useCallback(async () => {
+    if (catalogLoaded) return;
+    await iptvService.loadData();
+    setAllChannels(iptvService.getEnrichedChannels());
+    setCatalogLoaded(true);
+  }, [catalogLoaded]);
 
   useEffect(() => {
     if (searchQuery.length > 1) {
@@ -98,9 +97,16 @@ const Navbar: React.FC = () => {
               <input 
                 type="text" 
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => searchQuery.length > 1 && setShowSuggestions(true)}
+                onChange={(e) => {
+                  void ensureSearchCatalog();
+                  setSearchQuery(e.target.value);
+                }}
+                onFocus={() => {
+                  void ensureSearchCatalog();
+                  if (searchQuery.length > 1) setShowSuggestions(true);
+                }}
                 placeholder="Rechercher une chaîne..." 
+                aria-label="Rechercher une chaîne"
                 className="bg-black/50 border border-white/10 rounded-full py-1.5 px-4 pl-10 text-xs focus:outline-none focus:border-[#e50914] w-48 md:w-64 transition-all" 
               />
               <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
@@ -133,7 +139,9 @@ const Navbar: React.FC = () => {
                     </Link>
                   ))}
                   <button 
+                    type="button"
                     onClick={handleSearchSubmit}
+                    aria-label="Voir tous les résultats de recherche"
                     className="w-full py-2 text-[9px] font-black text-[#e50914] uppercase tracking-widest hover:bg-[#e50914]/5 transition-colors border-t border-white/5"
                   >
                     Voir tous les résultats
@@ -146,9 +154,13 @@ const Navbar: React.FC = () => {
           {user ? (
             <div className="relative">
               <button
+                type="button"
                 onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                 className="flex items-center gap-3 p-1 pl-3 pr-1 rounded-full border border-white/10 hover:bg-white/5 transition-colors"
                 id="user-menu-button"
+                aria-label="Menu compte utilisateur"
+                aria-expanded={isUserMenuOpen}
+                aria-haspopup="menu"
               >
                 <span className="text-xs font-bold text-gray-300 hidden sm:block uppercase tracking-widest">{user.displayName?.split(' ')[0]}</span>
                 {user.photoURL ? (

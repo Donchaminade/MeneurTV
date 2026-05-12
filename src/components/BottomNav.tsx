@@ -44,7 +44,9 @@ const BottomNav: React.FC = () => {
         })}
         {!user && (
            <button 
+             type="button"
              onClick={() => authModal.open('login')}
+             aria-label="Se connecter"
              className="flex flex-col items-center gap-1 flex-1 text-gray-500 active:scale-75 transition-transform"
            >
               <User size={18} />

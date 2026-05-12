@@ -1,23 +1,24 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { UserProvider, useUser } from './lib/UserContext';
 import { PiPProvider } from './lib/PiPContext';
 import FloatingPlayer from './components/FloatingPlayer';
 import Navbar from './components/Navbar';
-import Home from './pages/Home';
-import Favorites from './pages/Favorites';
-import Admin from './pages/Admin';
-import ChannelDetail from './pages/ChannelDetail';
-import PipPlayer from './pages/PipPlayer';
-import Search from './pages/Search';
-import Channels from './pages/Channels';
-import Profile from './pages/Profile';
-import Donate from './pages/Donate';
 import DonationPopup from './components/DonationPopup';
 import InstallPwaPrompt from './components/InstallPwaPrompt';
 import AuthModal from './components/AuthModal';
-
 import BottomNav from './components/BottomNav';
+import RouteFallback from './components/RouteFallback';
+
+const Home = lazy(() => import('./pages/Home'));
+const Favorites = lazy(() => import('./pages/Favorites'));
+const Admin = lazy(() => import('./pages/Admin'));
+const ChannelDetail = lazy(() => import('./pages/ChannelDetail'));
+const PipPlayer = lazy(() => import('./pages/PipPlayer'));
+const Search = lazy(() => import('./pages/Search'));
+const Channels = lazy(() => import('./pages/Channels'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Donate = lazy(() => import('./pages/Donate'));
 
 const AppContent: React.FC = () => {
   const location = useLocation();
@@ -33,7 +34,11 @@ const AppContent: React.FC = () => {
   }, [loading, user]);
 
   if (location.pathname === '/pip-player') {
-    return <PipPlayer />;
+    return (
+      <Suspense fallback={<RouteFallback />}>
+        <PipPlayer />
+      </Suspense>
+    );
   }
 
   if (loading) {
@@ -63,17 +68,18 @@ const AppContent: React.FC = () => {
       )}
       <Navbar />
       <main className="pt-20 pb-12 px-4 md:px-8 max-w-screen-2xl mx-auto">
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/channels" element={<Channels />} />
-          <Route path="/search" element={<Search />} />
-          <Route path="/favorites" element={user ? <Favorites /> : <Navigate to="/" />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/donate" element={<Donate />} />
-          <Route path="/admin" element={<Admin />} />
-          <Route path="/channel/:id" element={<ChannelDetail />} />
-          <Route path="/pip-player" element={<PipPlayer />} />
-        </Routes>
+        <Suspense fallback={<RouteFallback />}>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/channels" element={<Channels />} />
+            <Route path="/search" element={<Search />} />
+            <Route path="/favorites" element={user ? <Favorites /> : <Navigate to="/" />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/donate" element={<Donate />} />
+            <Route path="/admin" element={<Admin />} />
+            <Route path="/channel/:id" element={<ChannelDetail />} />
+          </Routes>
+        </Suspense>
       </main>
       <BottomNav />
       <InstallPwaPrompt />
