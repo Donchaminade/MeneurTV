@@ -1,0 +1,77 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and preferences",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "favorites": { "type": "array", "items": { "type": "string" } },
+        "isAdmin": { "type": "boolean" },
+        "isProfileComplete": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "favorites"]
+    },
+    "SiteSettings": {
+      "title": "SiteSettings",
+      "description": "Global application configuration",
+      "type": "object",
+      "properties": {
+        "donationFlooz": { "type": "string" },
+        "donationTMoney": { "type": "string" },
+        "donationVisa": { "type": "string" },
+        "supportMessage": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "View": {
+      "title": "View",
+      "description": "Record of a channel view",
+      "type": "object",
+      "properties": {
+        "channelId": { "type": "string" },
+        "userId": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["channelId", "userId", "timestamp"]
+    },
+    "Rating": {
+      "title": "Rating",
+      "description": "User rating for a channel",
+      "type": "object",
+      "properties": {
+        "channelId": { "type": "string" },
+        "userId": { "type": "string" },
+        "rating": { "type": "number", "minimum": 1, "maximum": 5 },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["channelId", "userId", "rating", "timestamp"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User documents"
+    },
+    "views/{viewId}": {
+      "schema": "View",
+      "description": "Activity logs"
+    },
+    "ratings/{ratingId}": {
+      "schema": "Rating",
+      "description": "Channel ratings"
+    },
+    "admins/{userId}": {
+      "schema": { "type": "object", "properties": { "email": { "type": "string" } } },
+      "description": "Admin user list"
+    },
+    "settings/{settingId}": {
+      "schema": "SiteSettings",
+      "description": "Global application configuration"
+    }
+  }
+}
