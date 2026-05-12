@@ -7,11 +7,26 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useVisualViewportInset } from '../hooks/useVisualViewportInset';
 import { CHANNELS_PAGE_SIZE } from '../lib/channelListPaging';
+import { channelMatchesSmartQuery } from '../lib/channelSearchMatch';
 
 /** Fond + texte lisibles (évite menu natif fond blanc / texte blanc). */
 const selectFieldClass =
   'w-full rounded-lg py-3 pl-10 pr-4 text-sm font-bold appearance-none focus:outline-none focus:border-[#e50914] ' +
   'border border-white/10 bg-[#141414] text-white [color-scheme:dark]';
+
+function useIsMobileSearchLayout(): boolean {
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const apply = () => setIsMobile(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+  return isMobile;
+}
 
 const SearchPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -22,6 +37,8 @@ const SearchPage: React.FC = () => {
   const [countries, setCountries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(CHANNELS_PAGE_SIZE);
+  const [draftQuery, setDraftQuery] = useState('');
+  const isMobileSearch = useIsMobileSearchLayout();
 
   const resultsAnchorRef = useRef<HTMLDivElement>(null);
   const skipScrollOnMountRef = useRef(true);
@@ -34,6 +51,11 @@ const SearchPage: React.FC = () => {
   const selectedCountry = searchParams.get('country') || 'all';
 
   const filterSignature = `${query}|${selectedCategory}|${selectedLanguage}|${selectedCountry}`;
+  const filtersOnlySignature = `${selectedCategory}|${selectedLanguage}|${selectedCountry}`;
+
+  useEffect(() => {
+    setDraftQuery(query);
+  }, [query]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -49,10 +71,7 @@ const SearchPage: React.FC = () => {
 
   const filteredChannels = useMemo(() => {
     return channels.filter((channel) => {
-      const matchesQuery =
-        !query ||
-        channel.name.toLowerCase().includes(query.toLowerCase()) ||
-        channel.id.toLowerCase().includes(query.toLowerCase());
+      const matchesQuery = channelMatchesSmartQuery(channel, query);
 
       const matchesCategory = selectedCategory === 'all' || channel.categories.includes(selectedCategory);
 
@@ -92,7 +111,7 @@ const SearchPage: React.FC = () => {
       scrollResultsIntoView();
     }, 280);
     return () => window.clearTimeout(t);
-  }, [filterSignature, filteredChannels.length, scrollResultsIntoView]);
+  }, [filtersOnlySignature, filteredChannels.length, scrollResultsIntoView]);
 
   const updateFilters = (updates: Record<string, string>) => {
     const newParams = new URLSearchParams(searchParams);
@@ -104,6 +123,14 @@ const SearchPage: React.FC = () => {
       }
     });
     setSearchParams(newParams);
+  };
+
+  const commitMobileSearch = () => {
+    const q = draftQuery.trim();
+    updateFilters({ q: q });
+    window.setTimeout(() => {
+      scrollResultsIntoView();
+    }, 150);
   };
 
   const bottomPad =
@@ -135,38 +162,68 @@ const SearchPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="relative group">
-          <input
-            type="search"
-            enterKeyHint="search"
-            value={query}
-            onChange={(e) => updateFilters({ q: e.target.value })}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                (e.target as HTMLInputElement).blur();
-                scrollResultsIntoView();
-              }
-            }}
-            placeholder="Nom de la chaîne, réseau, ID..."
-            aria-label="Recherche de chaînes"
-            className="w-full bg-white/5 border border-white/10 rounded-xl py-4 sm:py-5 px-12 sm:px-14 text-lg sm:text-xl font-bold text-white focus:outline-none focus:border-[#e50914] focus:ring-4 focus:ring-[#e50914]/10 transition-all placeholder:text-gray-600 [color-scheme:dark]"
-          />
-          <SearchIcon
-            size={22}
-            className="absolute left-4 sm:left-5 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-[#e50914] transition-colors"
-          />
-          {query && (
-            <button
-              type="button"
-              title="Effacer la recherche"
-              aria-label="Effacer la recherche"
-              onClick={() => updateFilters({ q: '' })}
-              className="absolute right-5 top-1/2 -translate-y-1/2 p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white"
-            >
-              <X size={20} />
-            </button>
-          )}
+        <div className="space-y-2">
+          <div className="flex gap-2 items-stretch md:block md:relative md:group">
+            <div className="relative flex-1 min-w-0 md:w-full">
+              <input
+                type="search"
+                enterKeyHint="search"
+                value={isMobileSearch ? draftQuery : query}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (isMobileSearch) setDraftQuery(v);
+                  else updateFilters({ q: v });
+                }}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter') return;
+                  e.preventDefault();
+                  (e.target as HTMLInputElement).blur();
+                  if (isMobileSearch) commitMobileSearch();
+                  else scrollResultsIntoView();
+                }}
+                placeholder="Nom de la chaîne, réseau, ID..."
+                aria-label="Recherche de chaînes"
+                className={cn(
+                  'w-full bg-white/5 border border-white/10 rounded-xl py-4 sm:py-5 pl-12 sm:pl-14 text-lg sm:text-xl font-bold text-white focus:outline-none focus:border-[#e50914] focus:ring-4 focus:ring-[#e50914]/10 transition-all placeholder:text-gray-600 [color-scheme:dark]',
+                  (isMobileSearch ? draftQuery || query : query) ? 'pr-12 sm:pr-14' : 'pr-4 sm:pr-5'
+                )}
+              />
+              <SearchIcon
+                size={22}
+                className="absolute left-4 sm:left-5 top-1/2 -translate-y-1/2 text-gray-500 md:group-focus-within:text-[#e50914] transition-colors"
+              />
+              {(isMobileSearch ? draftQuery || query : query) ? (
+                <button
+                  type="button"
+                  title="Effacer la recherche"
+                  aria-label="Effacer la recherche"
+                  onClick={() => {
+                    updateFilters({ q: '' });
+                    setDraftQuery('');
+                  }}
+                  className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white"
+                >
+                  <X size={20} />
+                </button>
+              ) : null}
+            </div>
+            {isMobileSearch ? (
+              <button
+                type="button"
+                onClick={commitMobileSearch}
+                title="Lancer la recherche"
+                aria-label="Lancer la recherche et afficher les résultats"
+                className="shrink-0 w-[3.25rem] rounded-xl bg-[#e50914] text-white flex items-center justify-center shadow-lg shadow-[#e50914]/25 active:scale-95 transition-transform border border-white/10"
+              >
+                <SearchIcon size={22} className="text-white" strokeWidth={2.25} />
+              </button>
+            ) : null}
+          </div>
+          {isMobileSearch ? (
+            <p className="text-[9px] font-bold uppercase tracking-widest text-gray-500 leading-relaxed">
+              Saisis puis touche la loupe ou Entrée — plusieurs mots : chacun doit apparaître (ex. anim doc).
+            </p>
+          ) : null}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -384,7 +441,10 @@ const SearchPage: React.FC = () => {
             </div>
             <button
               type="button"
-              onClick={() => updateFilters({ q: '', category: 'all', country: 'all', lang: 'all' })}
+              onClick={() => {
+                updateFilters({ q: '', category: 'all', country: 'all', lang: 'all' });
+                setDraftQuery('');
+              }}
               className="bg-[#e50914] text-white px-8 py-3 rounded font-black text-[10px] uppercase tracking-widest hover:bg-[#b20710] shadow-xl transition-all active:scale-95"
             >
               Réinitialiser les filtres

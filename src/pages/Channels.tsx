@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useVisualViewportInset } from '../hooks/useVisualViewportInset';
 import { CHANNELS_PAGE_SIZE } from '../lib/channelListPaging';
+import { channelMatchesSmartQuery } from '../lib/channelSearchMatch';
 
 const Channels: React.FC = () => {
   const { profile, toggleFavorite } = useUser();
@@ -54,8 +55,8 @@ const Channels: React.FC = () => {
   }, [channels, countriesList]);
 
   const filteredChannels = useMemo(() => {
-    const list = channels.filter(c => {
-      const matchSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const list = channels.filter((c) => {
+      const matchSearch = channelMatchesSmartQuery(c, searchTerm);
       const matchCat = selectedCategory === 'all' || c.categories.includes(selectedCategory);
       const matchCountry = selectedCountry === 'all' || c.country === selectedCountry;
       const matchLang = selectedLanguage === 'all' || c.languages.includes(selectedLanguage);
