@@ -123,6 +123,9 @@ const Home: React.FC = () => {
 
   return (
     <div className="space-y-16">
+      <h1 className="sr-only">
+        MeneurTV — plateforme de streaming IPTV, télévision en direct et milliers de chaînes dans le monde
+      </h1>
       {/* Hero Section */}
       {heroChannel && (
         <div className="relative h-[60vh] md:h-[75vh] w-full rounded-2xl overflow-hidden group shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
@@ -152,14 +155,14 @@ const Home: React.FC = () => {
               </div>
             </motion.div>
             
-            <motion.h1 
+            <motion.h2 
               key={`title-${heroChannel.id}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="text-3xl xs:text-4xl sm:text-5xl md:text-7xl font-display font-black tracking-tighter leading-none uppercase"
             >
               {heroChannel.name}
-            </motion.h1>
+            </motion.h2>
             
             <motion.p 
               key={`desc-${heroChannel.id}`}
