@@ -120,6 +120,32 @@ ${urls}
   ];
 }
 
+function faviconRedirectDev(): import('vite').Plugin {
+  const middleware = (
+    req: { url?: string },
+    res: { statusCode: number; setHeader: (k: string, v: string) => void; end: () => void },
+    next: () => void
+  ) => {
+    const url = req.url?.split('?')[0];
+    if (url === '/favicon.ico') {
+      res.statusCode = 302;
+      res.setHeader('Location', '/logo.svg');
+      res.end();
+      return;
+    }
+    next();
+  };
+  return {
+    name: 'meneurtv-favicon-redirect',
+    configureServer(server) {
+      server.middlewares.use(middleware);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(middleware);
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   const siteUrl = (env.APP_URL || env.VITE_SITE_URL || '').trim();
@@ -147,6 +173,7 @@ export default defineConfig(({ mode }) => {
           ],
         },
       }),
+      faviconRedirectDev(),
       ...meneurTvSeo(siteUrl || undefined, googleSiteVerification || undefined),
     ],
     define: {
