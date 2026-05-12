@@ -1,7 +1,10 @@
 {
-  "name": "react-example",
+  "name": "meneurtv",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "MeneurTV — plateforme web IPTV (projet propriétaire).",
+  "author": "Chaminade Dondah Adjolou <chaminade.dondah.adjolou@gmail.com>",
+  "license": "UNLICENSED",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",

@@ -9,6 +9,7 @@ import InstallPwaPrompt from './components/InstallPwaPrompt';
 import AuthModal from './components/AuthModal';
 import BottomNav from './components/BottomNav';
 import RouteFallback from './components/RouteFallback';
+import SiteFooter from './components/SiteFooter';
 
 const Home = lazy(() => import('./pages/Home'));
 const Favorites = lazy(() => import('./pages/Favorites'));
@@ -20,6 +21,7 @@ const Channels = lazy(() => import('./pages/Channels'));
 const Profile = lazy(() => import('./pages/Profile'));
 const Donate = lazy(() => import('./pages/Donate'));
 const PourVous = lazy(() => import('./pages/PourVous'));
+const MentionsLegales = lazy(() => import('./pages/MentionsLegales'));
 
 const AppContent: React.FC = () => {
   const location = useLocation();
@@ -80,9 +82,11 @@ const AppContent: React.FC = () => {
             <Route path="/donate" element={<Donate />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/channel/:id" element={<ChannelDetail />} />
+            <Route path="/mentions-legales" element={<MentionsLegales />} />
           </Routes>
         </Suspense>
       </main>
+      <SiteFooter />
       <BottomNav />
       <InstallPwaPrompt />
       <DonationPopup />

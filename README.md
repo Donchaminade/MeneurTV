@@ -6,13 +6,23 @@ MeneurTV est une application web moderne et performante conçue pour offrir la m
 
 ## 🚀 Fonctionnalités Clés
 
-- **Streaming Haute Fidélité** : Support multi-flux avec lecteur HLS optimisé (PiP natif navigateur, mini-lecteur in-app, fenêtre flottante `/pip-player` pour poursuivre la lecture dans une autre fenêtre).
-- **Grands Championnats** : Accès direct aux meilleures chaînes de sport (LaLiga, Champions League, Bundesliga).
-- **Expérience Personnalisée** : Favoris et notes (étoiles) avec persistance locale (`localStorage`) en complément de Firestore ; profils utilisateurs et historique de visionnage.
-- **Recherche & catalogue** : Recherche avancée et liste des chaînes avec pagination d’affichage (« Voir plus », lots de 50) et confort mobile (clavier virtuel : défilement vers les résultats, marge basse via `VisualViewport`).
-- **Progressive Web App (PWA)** : Installez MeneurTV sur votre écran d'accueil pour une expérience native sur mobile et desktop.
-- **Terminal Admin Sécurisé** : Gestion complète des chaînes, des utilisateurs et des statistiques de trafic.
-- **Mode Sécure** : Authentification via Google ou Email/Mot de passe sécurisé par Firebase.
+- **Streaming Haute Fidélité** : Lecteur HLS (PiP navigateur, mini-lecteur in-app, fenêtre dédiée `/pip-player`).
+- **Grands Championnats** : Mise en avant de chaînes sportives (LaLiga, Premier League, beIN, Canal+, DAZN, etc.) sur l’accueil.
+- **Pour Vous** (`/pour-vous`) : sélection éditoriale (cinéma, sport, séries, animés) avec **sous-types**, filtres (pays, langue `fra`, logo, favoris), **À la une** (suggestions aléatoires), **Reprendre** (historique local des dernières chaînes ouvertes) et mémorisation du défilement horizontal des rangées.
+- **Expérience personnalisée** : favoris et notes (Firestore + `localStorage` en secours) ; sur la fiche chaîne, partage natif (**Web Share**) ou copie du lien ; historique de visionnage côté compte quand connecté.
+- **Recherche & catalogue** : le catalogue IPTV n’est chargé pour la **barre de recherche** qu’à la saisie / au focus (moins de travail au chargement des autres pages). Recherche avec filtres (catégorie, pays, **langue** — les langues proviennent des flux `feeds.json` d’[iptv-org](https://github.com/iptv-org/api), voir ci-dessous). Liste des chaînes et recherche avec **pagination d’affichage** (« Voir plus », paquets de 50) et confort mobile (`VisualViewport`).
+- **Progressive Web App (PWA)** : installation sur l’écran d’accueil.
+- **Admin** (`/admin`) : gestion des utilisateurs et statistiques (Recharts), réservé aux comptes `isAdmin`.
+- **Authentification** : Google ou e-mail / mot de passe (Firebase).
+
+## Propriété intellectuelle, licences & mentions
+
+- **Code MeneurTV** : **tous droits réservés** — voir le fichier **`LICENSE`** à la racine (propriétaire ; pas de réutilisation sans accord écrit).
+- **Signature / auteur** : **Chaminade Dondah Adjolou** — e-mail `chaminade.dondah.adjolou@gmail.com`, [LinkedIn](https://www.linkedin.com/in/chaminadeadjolou), [portfolio](https://donchaminade-alpha.vercel.app). Métadonnées centralisées dans `src/lib/projectMetadata.ts` ; bannière de copyright en tête des **chunks** de production (`vite.config.ts`).
+- **Tiers** : **`NOTICE.md`** (iptv-org en domaine public, bibliothèques npm). **`LEGAL.md`** : avertissements (non avis juridique), responsabilité, contact PI.
+- **Page application** : **`/mentions-legales`** (lien dans le pied de page).
+
+Les métadonnées de chaînes proviennent du catalogue public **iptv-org** ; elles ne sont pas « la propriété » de MeneurTV — voir `NOTICE.md`.
 
 ## 💻 Développement
 
@@ -40,13 +50,20 @@ Google fournit un **fichier** ou une **balise meta** : le contenu est **unique �
 
 Tu n’as besoin que **d’une** des deux méthodes. Si tu utilises le fichier, ne modifie ni son nom ni son contenu ([documentation Google](https://support.google.com/webmasters/answer/9008080)).
 
-## 🛠️ Stack Technique
+## 🛠️ Stack technique
 
-- **Frontend** : React 19, Vite 6, Tailwind CSS 4.
-- **Animation** : Motion (framer-motion).
-- **Backend/DB** : Firebase Firestore (NoSQL), Firebase Authentication.
-- **API IPTV** : Service personnalisé intégrant des sources IPTV internationales.
-- **Visualisation** : Recharts pour les analyses administratives.
+- **Frontend** : React 19, Vite 6, Tailwind CSS 4, React Router 7.
+- **Découpage** : routes principales en **lazy loading** (`React.lazy`) + écran de chargement léger.
+- **Animation** : Motion.
+- **Backend** : Firebase Authentication + Firestore.
+- **Données chaînes (IPTV)** : catalogue public [iptv-org.github.io/api](https://iptv-org.github.io/api/) (dépôt [iptv-org/api](https://github.com/iptv-org/api)) — `channels.json`, `streams.json`, `logos.json`, `categories.json`, `languages.json`, `countries.json`, **`feeds.json`**. Depuis avril 2025, le champ `languages` n’existe plus sur les chaînes : l’app **agrège les codes langue** à partir de `feeds.json`. Seules les chaînes avec au moins une URL de flux connue sont proposées.
+- **Admin** : Recharts pour les graphiques.
+
+### Build & déploiement
+
+- **`APP_URL`** : voir section SEO ci-dessus (canonical, sitemap, Open Graph).
+- **Vercel** : `vercel.json` peut définir des en-têtes de cache pour les assets statiques.
+- Le build peut afficher un avertissement sur des chunks **> 500 kB** (Firebase, HLS, Recharts) : comportement normal, pas une erreur de compilation.
 
 ## 📱 Installation (PWA)
 

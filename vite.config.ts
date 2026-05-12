@@ -8,6 +8,15 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const MENEURTV_BUILD_BANNER = `/*!
+ * MeneurTV — bundle de production
+ * Copyright (c) 2025-2026 Chaminade Dondah Adjolou. Tous droits réservés.
+ * chaminade.dondah.adjolou@gmail.com
+ * LinkedIn: https://www.linkedin.com/in/chaminadeadjolou
+ * Portfolio: https://donchaminade-alpha.vercel.app
+ * Licence logiciel : voir LICENSE (propriétaire). Données chaînes : iptv-org — NOTICE.md.
+ */\n`;
+
 function escapeHtmlAttr(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 }
@@ -82,8 +91,10 @@ function meneurTvSeo(siteBaseUrl: string | undefined, googleSiteVerification: st
         const lastmod = new Date().toISOString().split('T')[0];
         const routes = [
           { path: '/', p: '1.0', c: 'weekly' as const },
+          { path: '/pour-vous', p: '0.95', c: 'weekly' as const },
           { path: '/channels', p: '0.9', c: 'weekly' as const },
           { path: '/search', p: '0.85', c: 'weekly' as const },
+          { path: '/mentions-legales', p: '0.35', c: 'yearly' as const },
           { path: '/donate', p: '0.6', c: 'monthly' as const },
           { path: '/profile', p: '0.5', c: 'monthly' as const },
         ];
@@ -188,6 +199,7 @@ export default defineConfig(({ mode }) => {
       sourcemap: 'hidden',
       rollupOptions: {
         output: {
+          banner: MENEURTV_BUILD_BANNER,
           manualChunks(id) {
             if (!id.includes('node_modules')) return;
             if (id.includes('recharts') || id.includes('d3-')) return 'vendor-recharts';
