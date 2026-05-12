@@ -126,7 +126,7 @@ const Admin: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!currentProfile?.isAdmin) {
+    if (!currentUser?.uid || !currentProfile?.isAdmin) {
       setLoading(false);
       return;
     }
@@ -165,7 +165,7 @@ const Admin: React.FC = () => {
       }
     };
     fetchData();
-  }, [currentProfile]);
+  }, [currentUser?.uid, currentProfile?.isAdmin]);
 
   const handleToggleAdmin = async (userId: string, currentStatus: boolean, emailAddr: string) => {
     if (userId === currentUser?.uid) {
