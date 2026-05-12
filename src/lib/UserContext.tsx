@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
 import { doc, onSnapshot, setDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 
@@ -7,6 +7,8 @@ interface UserProfile {
   email: string;
   favorites: string[];
   isAdmin: boolean;
+  /** false = compte désactivé par un admin */
+  isActive?: boolean;
   displayName?: string;
   photoURL?: string;
   phoneNumber?: string;
@@ -62,7 +64,21 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const unsubscribe = onSnapshot(userDocRef, async (docSnap) => {
       if (docSnap.exists()) {
-        const data = docSnap.data() as UserProfile;
+        const raw = docSnap.data() as UserProfile;
+        const data: UserProfile = {
+          ...raw,
+          favorites: Array.isArray(raw.favorites) ? raw.favorites : [],
+        };
+        if (data.isActive === false) {
+          try {
+            sessionStorage.setItem('meneurtv_account_disabled', '1');
+            await signOut(auth);
+          } catch {
+            /* ignore */
+          }
+          setLoading(false);
+          return;
+        }
         setProfile(data);
 
         // Check if user should be admin but isn't marked yet in Firestore (for local state)
@@ -78,6 +94,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: user.email || '',
           favorites: [],
           isAdmin: isInitialAdmin,
+          isActive: true,
           createdAt: serverTimestamp(),
         };
         
@@ -101,9 +118,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const toggleFavorite = async (channelId: string) => {
     if (!user || !profile) return;
-    const newFavorites = profile.favorites.includes(channelId)
-      ? profile.favorites.filter(id => id !== channelId)
-      : [...profile.favorites, channelId];
+    const current = profile.favorites ?? [];
+    const newFavorites = current.includes(channelId)
+      ? current.filter((id) => id !== channelId)
+      : [...current, channelId];
 
     try {
       await setDoc(doc(db, 'users', user.uid), { favorites: newFavorites }, { merge: true });

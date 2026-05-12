@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { iptvService, Channel, Category, Language } from '../lib/iptvApi';
-import { Tv, Play, Heart, ChevronRight, Filter, Globe, Search, Languages, Shield } from 'lucide-react';
+import { Tv, Play, Heart, Filter, Globe, Search, Languages } from 'lucide-react';
 import { useUser } from '../lib/UserContext';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -65,12 +65,8 @@ const Channels: React.FC = () => {
       return 0;
     });
 
-    // Restriction: Only 10 channels for unauthenticated or incomplete profiles
-    if (!profile || !profile.isProfileComplete) {
-      return sorted.slice(0, 10);
-    }
     return sorted;
-  }, [channels, searchTerm, selectedCategory, selectedCountry, selectedLanguage, profile]);
+  }, [channels, searchTerm, selectedCategory, selectedCountry, selectedLanguage]);
 
   if (loading) {
     return (
@@ -273,7 +269,7 @@ const Channels: React.FC = () => {
                 
                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                   <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#e50914] rounded-full flex items-center justify-center shadow-2xl scale-75 group-hover:scale-100 transition-all duration-300">
-                    <Play size={20} sm:size={24} fill="currentColor" className="ml-1" />
+                    <Play size={22} fill="currentColor" className="ml-1" />
                   </div>
                 </div>
               </div>
@@ -289,10 +285,10 @@ const Channels: React.FC = () => {
               }}
               className={cn(
                 "absolute top-2 right-2 p-1.5 sm:p-2 rounded-full backdrop-blur-md transition-all active:scale-90",
-                profile?.favorites.includes(channel.id) ? "bg-[#e50914] text-white" : "bg-black/40 text-white hover:bg-[#e50914]"
+                (profile?.favorites ?? []).includes(channel.id) ? "bg-[#e50914] text-white" : "bg-black/40 text-white hover:bg-[#e50914]"
               )}
             >
-              <Heart size={12} sm:size={14} fill={profile?.favorites.includes(channel.id) ? "currentColor" : "none"} />
+              <Heart size={14} fill={(profile?.favorites ?? []).includes(channel.id) ? "currentColor" : "none"} />
             </button>
 
             <div className="p-2 sm:p-3 space-y-0.5 sm:space-y-1">
@@ -307,29 +303,6 @@ const Channels: React.FC = () => {
           </motion.div>
         ))}
       </div>
-
-      {(!profile || !profile.isProfileComplete) && filteredChannels.length >= 10 && (
-         <div className="mt-12 p-12 rounded-3xl bg-gradient-to-br from-[#e50914]/20 to-transparent border border-[#e50914]/20 flex flex-col items-center text-center space-y-6 relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-8 opacity-10">
-               <Shield size={160} />
-            </div>
-            <div className="w-16 h-16 bg-[#e50914] rounded-2xl flex items-center justify-center text-white shadow-2xl">
-               <Shield size={32} />
-            </div>
-            <div className="space-y-2">
-               <h3 className="text-2xl font-black uppercase tracking-tighter">Accès Restreint</h3>
-               <p className="text-gray-400 text-sm max-w-md mx-auto">
-                  Pour accéder à l'intégralité de nos chaînes, veuillez créer un compte et compléter votre profil.
-               </p>
-            </div>
-            <Link 
-              to="/profile"
-              className="bg-[#e50914] text-white px-10 py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-[#b20710] transition-all shadow-2xl active:scale-95"
-            >
-              Compléter mon Profil
-            </Link>
-         </div>
-      )}
 
       {filteredChannels.length > 150 && (
          <div className="py-12 text-center border-t border-white/5 mt-12">

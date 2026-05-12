@@ -163,7 +163,7 @@ const ChannelDetail: React.FC = () => {
                   : "bg-white/5 border-white/10 text-white hover:bg-white/10"
               )}
             >
-              <Heart size={16} sm:size={18} className={profile?.favorites.includes(channel.id) ? 'fill-white' : ''} />
+              <Heart size={18} className={profile?.favorites.includes(channel.id) ? 'fill-white' : ''} />
               {profile?.favorites.includes(channel.id) ? 'Favoris' : 'Ajouter'}
             </button>
             <ShareButton />

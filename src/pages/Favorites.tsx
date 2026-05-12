@@ -23,7 +23,8 @@ const Favorites: React.FC = () => {
 
   const favoriteChannels = useMemo(() => {
     if (!profile) return [];
-    return channels.filter(c => profile.favorites.includes(c.id));
+    const ids = profile.favorites ?? [];
+    return channels.filter((c) => ids.includes(c.id));
   }, [channels, profile]);
 
   if (loading) {

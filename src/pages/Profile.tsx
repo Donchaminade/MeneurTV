@@ -7,7 +7,7 @@ import { User, Mail, Phone, Heart, Share2, Shield, Settings, Check, CreditCard, 
 import { useNavigate, Link } from 'react-router-dom';
 import { auth, logOut } from '../lib/firebase';
 import { iptvService as apiService, Channel as ChannelType } from '../lib/iptvApi';
-import { cn } from '../lib/utils';
+import { cn, getDonationPaymentFields } from '../lib/utils';
 
 const Profile: React.FC = () => {
   const { user, profile, updateProfile, loading: userLoading, authModal } = useUser();
@@ -23,14 +23,15 @@ const Profile: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [donationCopied, setDonationCopied] = useState<string | null>(null);
 
+  // Ne pas réécraser le formulaire pendant l'édition : onSnapshot peut se redéclencher
+  // (cache → serveur, reconnexion) avec un nouvel objet `profile` et effaçait chaque frappe.
   useEffect(() => {
-    if (profile) {
-      setFormData({
-        displayName: profile.displayName || '',
-        phoneNumber: profile.phoneNumber || '',
-      });
-    }
-  }, [profile]);
+    if (isEditing || !profile) return;
+    setFormData({
+      displayName: profile.displayName || '',
+      phoneNumber: profile.phoneNumber || '',
+    });
+  }, [profile, isEditing]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -108,10 +109,22 @@ const Profile: React.FC = () => {
       <header className="relative py-8 sm:py-12 rounded-3xl bg-gradient-to-br from-white/10 to-transparent border border-white/10 overflow-hidden px-6 sm:px-8 md:px-12">
         <div className="absolute top-0 right-0 p-4 sm:p-8">
             <button 
-              onClick={() => setIsEditing(!isEditing)}
+              onClick={() => {
+                if (isEditing) {
+                  setIsEditing(false);
+                } else {
+                  if (profile) {
+                    setFormData({
+                      displayName: profile.displayName || '',
+                      phoneNumber: profile.phoneNumber || '',
+                    });
+                  }
+                  setIsEditing(true);
+                }
+              }}
               className="p-2.5 sm:p-3 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 transition-colors"
             >
-              <Settings size={18} sm:size={20} className="text-gray-400" />
+              <Settings size={20} className="text-gray-400" />
             </button>
         </div>
         
@@ -126,7 +139,7 @@ const Profile: React.FC = () => {
             </div>
             {profile?.isProfileComplete && (
               <div className="absolute -bottom-1 -right-1 sm:-bottom-2 sm:-right-2 bg-green-500 text-white p-1 sm:p-1.5 rounded-full border-4 border-[#0a0a0a]">
-                <Check size={14} sm:size={16} />
+                <Check size={16} />
               </div>
             )}
           </div>
@@ -138,7 +151,7 @@ const Profile: React.FC = () => {
                   {profile?.isAdmin && <span className="ml-2 sm:ml-3 text-[8px] sm:text-[10px] px-1.5 sm:py-1 bg-[#e50914] rounded align-middle">ADMIN</span>}
                 </h1>
                 <p className="text-gray-500 text-xs sm:text-sm font-medium flex items-center justify-center md:justify-start gap-2">
-                  <Mail size={12} sm:size={14} /> {user.email}
+                  <Mail size={14} /> {user.email}
                 </p>
              </div>
              
@@ -235,27 +248,34 @@ const Profile: React.FC = () => {
              </div>
 
              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-display">
-                <DonationCard 
-                  type="Flooz" 
-                  value={settings?.donationFlooz} 
-                  icon={<Smartphone size={20} />} 
-                  onCopy={() => copyDonation(settings?.donationFlooz, 'flooz')}
-                  isCopied={donationCopied === 'flooz'}
-                />
-                <DonationCard 
-                  type="TMoney" 
-                  value={settings?.donationTMoney} 
-                  icon={<Smartphone size={20} />} 
-                  onCopy={() => copyDonation(settings?.donationTMoney, 'tmoney')}
-                  isCopied={donationCopied === 'tmoney'}
-                />
-                <DonationCard 
-                  type="Visa / Card" 
-                  value={settings?.donationVisa} 
-                  icon={<CreditCard size={20} />} 
-                  onCopy={() => copyDonation(settings?.donationVisa, 'visa')}
-                  isCopied={donationCopied === 'visa'}
-                />
+                {(() => {
+                  const pay = getDonationPaymentFields(settings);
+                  return (
+                    <>
+                      <DonationCard
+                        type="Flooz"
+                        value={pay.flooz}
+                        icon={<Smartphone size={20} />}
+                        onCopy={() => copyDonation(pay.flooz, 'flooz')}
+                        isCopied={donationCopied === 'flooz'}
+                      />
+                      <DonationCard
+                        type="Yas"
+                        value={pay.yas}
+                        icon={<Smartphone size={20} />}
+                        onCopy={() => copyDonation(pay.yas, 'yas')}
+                        isCopied={donationCopied === 'yas'}
+                      />
+                      <DonationCard
+                        type="Compte bancaire"
+                        value={pay.bank}
+                        icon={<CreditCard size={20} />}
+                        onCopy={() => copyDonation(pay.bank, 'bank')}
+                        isCopied={donationCopied === 'bank'}
+                      />
+                    </>
+                  );
+                })()}
              </div>
           </section>
         </div>
@@ -279,7 +299,7 @@ const Profile: React.FC = () => {
                       <input 
                         type="text" 
                         value={formData.displayName}
-                        onChange={(e) => setFormData({...formData, displayName: e.target.value})}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, displayName: e.target.value }))}
                         className="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 focus:outline-none focus:border-[#e50914]"
                         placeholder="Votre nom"
                       />
@@ -289,7 +309,7 @@ const Profile: React.FC = () => {
                       <input 
                         type="text" 
                         value={formData.phoneNumber}
-                        onChange={(e) => setFormData({...formData, phoneNumber: e.target.value})}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, phoneNumber: e.target.value }))}
                         className="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 focus:outline-none focus:border-[#e50914]"
                         placeholder="+228..."
                       />
@@ -314,7 +334,16 @@ const Profile: React.FC = () => {
                    </div>
                    {!profile?.isProfileComplete && (
                       <button 
-                        onClick={() => setIsEditing(true)}
+                        type="button"
+                        onClick={() => {
+                          if (profile) {
+                            setFormData({
+                              displayName: profile.displayName || '',
+                              phoneNumber: profile.phoneNumber || '',
+                            });
+                          }
+                          setIsEditing(true);
+                        }}
                         className="w-full py-4 bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-yellow-500/20 transition-all"
                       >
                         Compléter mon profil

@@ -278,7 +278,7 @@ const Home: React.FC = () => {
 
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                       <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center text-black shadow-2xl scale-75 group-hover:scale-100 transition-transform">
-                        <Play size={16} sm:size={20} fill="black" className="ml-1" />
+                        <Play size={18} fill="black" className="ml-1" />
                       </div>
                     </div>
                   </div>

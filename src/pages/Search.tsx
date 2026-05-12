@@ -6,6 +6,11 @@ import { useUser } from '../lib/UserContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 
+/** Fond + texte lisibles (évite menu natif fond blanc / texte blanc). */
+const selectFieldClass =
+  'w-full rounded-lg py-3 pl-10 pr-4 text-sm font-bold appearance-none focus:outline-none focus:border-[#e50914] ' +
+  'border border-white/10 bg-[#141414] text-white [color-scheme:dark]';
+
 const SearchPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { profile, toggleFavorite } = useUser();
@@ -93,9 +98,9 @@ const SearchPage: React.FC = () => {
             value={query}
             onChange={(e) => updateFilters({ q: e.target.value })}
             placeholder="Nom de la chaîne, réseau, ID..." 
-            className="w-full bg-white/5 border border-white/10 rounded-xl py-4 sm:py-5 px-12 sm:px-14 text-lg sm:text-xl font-bold focus:outline-none focus:border-[#e50914] focus:ring-4 focus:ring-[#e50914]/10 transition-all placeholder:text-gray-600" 
+            className="w-full bg-white/5 border border-white/10 rounded-xl py-4 sm:py-5 px-12 sm:px-14 text-lg sm:text-xl font-bold text-white focus:outline-none focus:border-[#e50914] focus:ring-4 focus:ring-[#e50914]/10 transition-all placeholder:text-gray-600 [color-scheme:dark]" 
           />
-          <SearchIcon size={20} sm:size={24} className="absolute left-4 sm:left-5 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-[#e50914] transition-colors" />
+          <SearchIcon size={22} className="absolute left-4 sm:left-5 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-[#e50914] transition-colors" />
           {query && (
             <button 
               onClick={() => updateFilters({ q: '' })}
@@ -116,11 +121,11 @@ const SearchPage: React.FC = () => {
               <select 
                 value={selectedCategory}
                 onChange={(e) => updateFilters({ category: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-lg py-3 pl-10 pr-4 text-sm font-bold appearance-none focus:outline-none focus:border-[#e50914]"
+                className={selectFieldClass}
               >
-                <option value="all">Toutes les catégories</option>
+                <option value="all" className="bg-[#141414] text-white">Toutes les catégories</option>
                 {categories.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  <option key={cat.id} value={cat.id} className="bg-[#141414] text-white">{cat.name}</option>
                 ))}
               </select>
             </div>
@@ -134,11 +139,11 @@ const SearchPage: React.FC = () => {
               <select 
                 value={selectedCountry}
                 onChange={(e) => updateFilters({ country: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-lg py-3 pl-10 pr-4 text-sm font-bold appearance-none focus:outline-none focus:border-[#e50914]"
+                className={selectFieldClass}
               >
-                <option value="all">Tous les pays</option>
+                <option value="all" className="bg-[#141414] text-white">Tous les pays</option>
                 {countries.sort((a, b) => a.name.localeCompare(b.name)).map(country => (
-                  <option key={country.code} value={country.code.toLowerCase()}>{country.name}</option>
+                  <option key={country.code} value={country.code.toLowerCase()} className="bg-[#141414] text-white">{country.name}</option>
                 ))}
               </select>
             </div>
@@ -152,11 +157,11 @@ const SearchPage: React.FC = () => {
               <select 
                 value={selectedLanguage}
                 onChange={(e) => updateFilters({ lang: e.target.value })}
-                className="w-full bg-white/5 border border-white/10 rounded-lg py-3 pl-10 pr-4 text-sm font-bold appearance-none focus:outline-none focus:border-[#e50914]"
+                className={selectFieldClass}
               >
-                <option value="all">Toutes les langues</option>
+                <option value="all" className="bg-[#141414] text-white">Toutes les langues</option>
                 {languages.map(lang => (
-                  <option key={lang.code} value={lang.code}>{lang.name}</option>
+                  <option key={lang.code} value={lang.code} className="bg-[#141414] text-white">{lang.name}</option>
                 ))}
               </select>
             </div>
@@ -168,11 +173,12 @@ const SearchPage: React.FC = () => {
             <div className="relative">
               <Tv className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
               <select 
-                className="w-full bg-white/5 border border-white/10 rounded-lg py-3 pl-10 pr-4 text-sm font-bold appearance-none focus:outline-none focus:border-[#e50914]"
+                className={selectFieldClass}
+                defaultValue="all"
               >
-                <option value="all">Toutes qualités</option>
-                <option value="hd">Haute Définition (HD)</option>
-                <option value="sd">Définition Standard (SD)</option>
+                <option value="all" className="bg-[#141414] text-white">Toutes qualités</option>
+                <option value="hd" className="bg-[#141414] text-white">Haute Définition (HD)</option>
+                <option value="sd" className="bg-[#141414] text-white">Définition Standard (SD)</option>
               </select>
             </div>
           </div>
@@ -212,10 +218,10 @@ const SearchPage: React.FC = () => {
                       onClick={() => toggleFavorite(channel.id)}
                       className={cn(
                         "absolute top-4 right-4 p-2.5 rounded-md shadow-2xl active:scale-95 transition-all",
-                        profile?.favorites.includes(channel.id) ? "bg-[#e50914] text-white" : "bg-black/50 text-white hover:bg-white/10"
+                        (profile?.favorites ?? []).includes(channel.id) ? "bg-[#e50914] text-white" : "bg-black/50 text-white hover:bg-white/10"
                       )}
                     >
-                      <Heart size={16} fill={profile?.favorites.includes(channel.id) ? "currentColor" : "none"} />
+                      <Heart size={16} fill={(profile?.favorites ?? []).includes(channel.id) ? "currentColor" : "none"} />
                     </button>
 
                     <div className="absolute top-4 left-4">

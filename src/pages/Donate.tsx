@@ -4,6 +4,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { motion } from 'motion/react';
 import { Smartphone, CreditCard, MessageSquare, Heart, ArrowLeft, Coffee, Banknote, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { getDonationPaymentFields } from '../lib/utils';
 
 const Donate: React.FC = () => {
   const [settings, setSettings] = useState<any>(null);
@@ -59,24 +60,31 @@ const Donate: React.FC = () => {
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-         <DonationMethodCard 
-            icon={<Smartphone size={32} />} 
-            label="FLOOZ" 
-            value={settings?.donationFlooz || "Non configuré"} 
-            color="text-orange-500" 
-         />
-         <DonationMethodCard 
-            icon={<Smartphone size={32} />} 
-            label="TMONEY" 
-            value={settings?.donationTMoney || "Non configuré"} 
-            color="text-blue-500" 
-         />
-         <DonationMethodCard 
-            icon={<CreditCard size={32} />} 
-            label="VISA / BANQUE" 
-            value={settings?.donationVisa || "Non configuré"} 
-            color="text-[#e50914]" 
-         />
+         {(() => {
+           const pay = getDonationPaymentFields(settings);
+           return (
+             <>
+               <DonationMethodCard
+                 icon={<Smartphone size={32} />}
+                 label="Flooz"
+                 value={pay.flooz || 'Non configuré'}
+                 color="text-orange-500"
+               />
+               <DonationMethodCard
+                 icon={<Smartphone size={32} />}
+                 label="Yas"
+                 value={pay.yas || 'Non configuré'}
+                 color="text-blue-500"
+               />
+               <DonationMethodCard
+                 icon={<CreditCard size={32} />}
+                 label="Compte bancaire"
+                 value={pay.bank || 'Non configuré'}
+                 color="text-[#e50914]"
+               />
+             </>
+           );
+         })()}
       </div>
 
       <div className="glass p-10 rounded-[40px] border-white/5 space-y-8 relative overflow-hidden group">
