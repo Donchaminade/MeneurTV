@@ -104,6 +104,7 @@ const FloatingPlayer: React.FC = () => {
       </div>
       <div className="relative w-full bg-black">
         <VideoPlayer
+          urls={activePip.stream_urls}
           url={activePip.stream_url}
           poster={activePip.logo}
           compact

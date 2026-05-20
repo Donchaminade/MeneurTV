@@ -1,5 +1,7 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Hls from 'hls.js';
+import * as dashjs from 'dashjs';
+import { resolvePlaybackUrlCandidates } from '../lib/streamUtils';
 import {
   Settings,
   Maximize,
@@ -16,7 +18,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 
 interface VideoPlayerProps {
-  url: string;
+  /** Plusieurs URLs pour la même chaîne (repli si un flux est mort ou bloqué). */
+  urls?: string[];
+  /** URL unique ; préférez `urls` si plusieurs flux sont connus. */
+  url?: string;
   poster?: string;
   autoPlay?: boolean;
   /** Lecteur compact (mini fenêtre) */
@@ -32,7 +37,14 @@ interface VideoPlayerProps {
   allowPopout?: boolean;
 }
 
+/** Manifeste MPEG-DASH (ex. Canal+ / TF1 sur iptv-org). */
+function isDashManifestUrl(url: string): boolean {
+  const path = (url.split('?')[0] ?? '').toLowerCase();
+  return path.endsWith('.mpd');
+}
+
 const VideoPlayer: React.FC<VideoPlayerProps> = ({
+  urls,
   url,
   poster,
   autoPlay = true,
@@ -69,9 +81,50 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  const rawCandidateUrls = useMemo(() => {
+    const fromProp = urls?.filter((u) => typeof u === 'string' && u.trim().length > 0) ?? [];
+    if (fromProp.length > 0) return fromProp;
+    const u = url?.trim();
+    return u ? [u] : [];
+  }, [urls, url]);
+
+  const resolvedPlaybackUrls = useMemo(
+    () => resolvePlaybackUrlCandidates(rawCandidateUrls),
+    [rawCandidateUrls]
+  );
+
+  const [streamAttemptIndex, setStreamAttemptIndex] = useState(0);
+  const streamsTotalRef = useRef(0);
+  streamsTotalRef.current = resolvedPlaybackUrls.length;
+
+  const tryNextStreamRef = useRef<() => void>(() => {});
+  tryNextStreamRef.current = () => {
+    setStreamAttemptIndex((i) => {
+      if (i + 1 < streamsTotalRef.current) return i + 1;
+      setError(
+        streamsTotalRef.current <= 1
+          ? 'Ce flux ne peut pas être lu ici : il est souvent chiffré (DRM / Widevine), réservé à une zone géographique, ou refusé par le navigateur (sans en-têtes CORS). La source ne propose parfois qu’une seule URL ; dans ce cas aucune lecture n’est possible dans MeneurTV sans droits et serveur de licences adaptés.'
+          : 'Aucun des flux disponibles n’a pu être lu.'
+      );
+      return i;
+    });
+  };
+
+  const playbackUrlsKey = resolvedPlaybackUrls.join('\n');
+  useEffect(() => {
+    setStreamAttemptIndex(0);
+  }, [playbackUrlsKey]);
+
+  const playUrl = resolvedPlaybackUrls[streamAttemptIndex] ?? '';
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+    if (!playUrl) {
+      setError('Aucune URL de flux.');
+      setIsLoading(false);
+      return;
+    }
     video.setAttribute('playsinline', '');
     video.setAttribute('webkit-playsinline', '');
 
@@ -95,8 +148,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
 
     let hls: Hls | null = null;
+    let dashPlayer: { reset: () => void; on: (ev: string, cb: (...args: unknown[]) => void) => void } | null = null;
     setError(null);
     setIsLoading(true);
+    setHlsInstance(null);
+    setAvailableQualities(['Auto']);
+    setQuality('Auto');
 
     const handleLevelLoaded = (_: any, data: any) => {
       if (hls) {
@@ -106,21 +163,30 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       }
     };
 
+    let networkFatalRetries = 0;
+
     const handleError = (_: any, data: any) => {
       if (data.fatal) {
         switch (data.type) {
           case Hls.ErrorTypes.NETWORK_ERROR:
-            console.error("Fatal network error encountered, trying to recover");
-            hls?.startLoad();
+            if (networkFatalRetries < 2) {
+              networkFatalRetries += 1;
+              hls?.startLoad();
+            } else {
+              hls?.destroy();
+              hls = null;
+              tryNextStreamRef.current();
+            }
             break;
           case Hls.ErrorTypes.MEDIA_ERROR:
-            console.error("Fatal media error encountered, trying to recover");
+            console.error('Erreur média HLS, tentative de récupération…');
             hls?.recoverMediaError();
             break;
           default:
-            console.error("Fatal error, cannot recover");
-            setError("Impossible de charger le flux vidéo.");
+            console.error('Erreur HLS fatale, essai du flux suivant si disponible');
             hls?.destroy();
+            hls = null;
+            tryNextStreamRef.current();
             break;
         }
       }
@@ -133,10 +199,42 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       setIsLoading(false);
     };
 
+    let nativeErr: (() => void) | undefined;
+    let nativeLoaded: (() => void) | undefined;
+
     const onCanPlay = () => tryClearLoading();
     video.addEventListener('canplay', onCanPlay, { once: true });
 
-    if (Hls.isSupported()) {
+    if (isDashManifestUrl(playUrl)) {
+      if (!dashjs.supportsMediaSource()) {
+        tryNextStreamRef.current();
+        setIsLoading(false);
+      } else {
+        try {
+          const player = dashjs.MediaPlayer().create();
+          dashPlayer = player;
+          player.initialize(video, playUrl, autoPlay);
+          const ev = dashjs.MediaPlayer.events;
+          player.on(ev.STREAM_INITIALIZED, () => {
+            if (autoPlay) video.play().catch(console.error);
+            tryClearLoading();
+          });
+          player.on(ev.ERROR, () => {
+            tryClearLoading();
+            try {
+              dashPlayer?.reset();
+            } catch {
+              /* ignore */
+            }
+            tryNextStreamRef.current();
+          });
+        } catch (e) {
+          console.error('[MeneurTV] dash.js', e);
+          tryNextStreamRef.current();
+          setIsLoading(false);
+        }
+      }
+    } else if (Hls.isSupported()) {
       hls = new Hls({
         enableWorker: true,
         // Qualité la plus basse en premier = premier segment plus léger, démarrage plus rapide
@@ -152,7 +250,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         levelLoadingTimeOut: 20000,
         fragLoadingTimeOut: 20000,
       });
-      hls.loadSource(url);
+      hls.loadSource(playUrl);
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         if (autoPlay) video.play().catch(console.error);
@@ -164,14 +262,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       hls.on(Hls.Events.LEVEL_LOADED, handleLevelLoaded);
       setHlsInstance(hls);
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = url;
-      video.addEventListener('loadedmetadata', () => {
+      nativeErr = () => tryNextStreamRef.current();
+      nativeLoaded = () => {
         tryClearLoading();
         if (autoPlay) video.play().catch(console.error);
-      });
-      video.addEventListener('error', () => {
-        setError("Erreur de lecture vidéo.");
-      });
+      };
+      video.src = playUrl;
+      video.addEventListener('error', nativeErr);
+      video.addEventListener('loadedmetadata', nativeLoaded, { once: true });
     }
 
     const onPlay = () => setIsPlaying(true);
@@ -185,14 +283,30 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     return () => {
       loadingCleared = true;
       video.removeEventListener('canplay', onCanPlay);
+      if (dashPlayer) {
+        try {
+          dashPlayer.reset();
+        } catch (e) {
+          console.warn('[MeneurTV] dash reset', e);
+        }
+        dashPlayer = null;
+      }
       if (hls) {
         hls.destroy();
+      }
+      if (nativeErr) video.removeEventListener('error', nativeErr);
+      if (nativeLoaded) video.removeEventListener('loadedmetadata', nativeLoaded);
+      video.removeAttribute('src');
+      try {
+        video.load();
+      } catch {
+        /* ignore */
       }
       video.removeEventListener('play', onPlay);
       video.removeEventListener('pause', onPause);
       video.removeEventListener('volumechange', onVolumeChange);
     };
-  }, [url, autoPlay]);
+  }, [playUrl, autoPlay]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -205,7 +319,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       video.removeEventListener('enterpictureinpicture', onEnter);
       video.removeEventListener('leavepictureinpicture', onLeave);
     };
-  }, [url]);
+  }, [playUrl]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -296,11 +410,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   const openPopoutWindow = useCallback(() => {
     const LS_PIP_LAUNCH = 'meneurtv_pip_launch';
+    const stored = resolvedPlaybackUrls.length > 0 ? resolvedPlaybackUrls : rawCandidateUrls;
+    if (stored.length === 0) return;
     try {
       localStorage.setItem(
         LS_PIP_LAUNCH,
         JSON.stringify({
-          url,
+          urls: stored,
+          url: stored[0],
           poster,
           name: popoutTitle ?? undefined,
           ts: Date.now(),
@@ -323,7 +440,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         'Autorise les fenêtres popup pour ce site afin d’ouvrir le lecteur dans une fenêtre séparée (visible en changeant d’onglet ou d’appli).'
       );
     }
-  }, [url, poster, popoutTitle]);
+  }, [resolvedPlaybackUrls, rawCandidateUrls, poster, popoutTitle]);
 
   const toggleNativePip = async () => {
     const v = videoRef.current;
@@ -384,7 +501,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
             <VolumeX className="w-8 h-8 text-[#e50914]" />
           </div>
           <h3 className="text-lg font-black uppercase tracking-tight mb-2">Erreur de lecture</h3>
-          <p className="text-gray-400 text-sm max-w-xs">{error}</p>
+          <p className="text-gray-400 text-sm max-w-md leading-relaxed">{error}</p>
           <button 
             onClick={() => window.location.reload()}
             className="mt-6 bg-[#e50914] text-white px-6 py-2 rounded font-black text-[10px] uppercase tracking-widest shadow-xl"

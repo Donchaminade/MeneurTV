@@ -13,7 +13,10 @@ export interface Channel {
   replaced_by: string | null;
   website: string | null;
   logo?: string;
+  /** Premier flux (rétrocompat). */
   stream_url?: string;
+  /** Toutes les URLs listées sur iptv-org pour cette chaîne (essais successifs côté lecteur). */
+  stream_urls?: string[];
 }
 
 export interface Stream {
@@ -104,16 +107,59 @@ class IPTVService {
 
       const langsByChannel = mergeLanguagesByChannel(feeds);
 
-      // Pre-enrich channels
-      const streamMap = new Map<string, string>();
-      this.streams.forEach(s => {
-        if (s.channel) {
-          const key = s.channel.toLowerCase();
-          if (!streamMap.has(key)) {
-            streamMap.set(key, s.url);
+      const streamsByChannel = new Map<string, string[]>();
+      for (const s of this.streams) {
+        if (!s.channel || !s.url) continue;
+        const key = s.channel.toLowerCase();
+        const list = streamsByChannel.get(key) ?? [];
+        if (!list.includes(s.url)) list.push(s.url);
+        streamsByChannel.set(key, list);
+      }
+
+      const extraStreamsUrl = import.meta.env.VITE_EXTRA_STREAMS_URL as string | undefined;
+      if (extraStreamsUrl?.trim()) {
+        try {
+          const extra = await fetchJson(extraStreamsUrl.trim());
+          if (extra && typeof extra === 'object' && !Array.isArray(extra)) {
+            for (const [chId, val] of Object.entries(extra as Record<string, unknown>)) {
+              const key = chId.toLowerCase();
+              const urlsToAdd: string[] = [];
+              if (typeof val === 'string' && val.trim()) urlsToAdd.push(val.trim());
+              else if (Array.isArray(val)) {
+                for (const u of val) {
+                  if (typeof u === 'string' && u.trim()) urlsToAdd.push(u.trim());
+                }
+              }
+              if (urlsToAdd.length === 0) continue;
+              const list = streamsByChannel.get(key) ?? [];
+              for (const u of urlsToAdd) {
+                if (!list.includes(u)) list.push(u);
+              }
+              streamsByChannel.set(key, list);
+            }
+          }
+        } catch (e) {
+          console.warn('[MeneurTV] VITE_EXTRA_STREAMS_URL : fusion impossible', e);
+        }
+      }
+
+      const collectStreamUrls = (c: Channel): string[] => {
+        const idLower = c.id.toLowerCase();
+        const nameLower = c.name.toLowerCase();
+        const idBase = idLower.split('.')[0];
+        const seen = new Set<string>();
+        const out: string[] = [];
+        for (const key of [idLower, nameLower, idBase]) {
+          const list = streamsByChannel.get(key);
+          if (!list) continue;
+          for (const u of list) {
+            if (seen.has(u)) continue;
+            seen.add(u);
+            out.push(u);
           }
         }
-      });
+        return out;
+      };
 
       const logoMap = new Map<string, string>();
       this.logos.forEach(l => {
@@ -130,12 +176,10 @@ class IPTVService {
         .map(c => {
           const idLower = c.id.toLowerCase();
           const nameLower = c.name.toLowerCase();
-          const idBase = idLower.split('.')[0];
 
-          const streamUrl = streamMap.get(idLower) || 
-                           streamMap.get(nameLower) ||
-                           streamMap.get(idBase);
-          
+          const streamUrls = collectStreamUrls(c);
+          const streamUrl = streamUrls[0];
+
           const feedLangs = langsByChannel.get(idLower) ?? [];
           const legacy = Array.isArray(c.languages) ? c.languages : [];
           const mergedLangs = [...new Set([...legacy, ...feedLangs])].sort();
@@ -143,11 +187,12 @@ class IPTVService {
           return {
             ...c,
             languages: mergedLangs,
+            stream_urls: streamUrls,
             stream_url: streamUrl,
             logo: logoMap.get(idLower) || logoMap.get(nameLower)
           };
         })
-        .filter(c => !!c.stream_url);
+        .filter(c => (c.stream_urls?.length ?? 0) > 0);
 
       this.isLoaded = true;
       console.log(`IPTV data loaded: ${this.enrichedChannels.length} enriched channels`);

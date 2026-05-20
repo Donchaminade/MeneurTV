@@ -115,12 +115,15 @@ const ChannelDetail: React.FC = () => {
 
   const isRestricted = !profile;
 
+  const hasPlayback = (channel.stream_urls?.length ?? 0) > 0 || !!channel.stream_url;
+
   const goHomeWithMini = () => {
-    if (!channel.stream_url || isRestricted) return;
+    if (isRestricted || !hasPlayback) return;
     startPip({
       id: channel.id,
       name: channel.name,
-      stream_url: channel.stream_url,
+      stream_url: channel.stream_urls?.[0] ?? channel.stream_url!,
+      stream_urls: channel.stream_urls,
       logo: channel.logo,
     });
     navigate('/');
@@ -133,7 +136,7 @@ const ChannelDetail: React.FC = () => {
           <Link to="/" className="inline-flex items-center gap-2 text-gray-500 hover:text-white transition-colors text-xs font-black uppercase tracking-widest">
             <ArrowLeft size={14} /> Retour à l'accueil
           </Link>
-          {!isRestricted && channel.stream_url && (
+          {!isRestricted && hasPlayback && (
             <button
               type="button"
               onClick={goHomeWithMini}
@@ -166,10 +169,10 @@ const ChannelDetail: React.FC = () => {
                 </button>
             </div>
           ) : (
-            <VideoPlayer url={channel.stream_url!} poster={channel.logo} popoutTitle={channel.name} />
+            <VideoPlayer urls={channel.stream_urls} url={channel.stream_url} poster={channel.logo} popoutTitle={channel.name} />
           )}
         </div>
-        {!isRestricted && channel.stream_url && (
+        {!isRestricted && hasPlayback && (
           <p className="text-[9px] text-gray-500 leading-relaxed max-w-2xl">
             <span className="font-black uppercase tracking-widest text-gray-600">Lecture continue :</span> dans le
             lecteur, « fenêtre flottante » ouvre une autre fenêtre du navigateur (pratique sur mobile et entre onglets).

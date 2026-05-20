@@ -6,7 +6,8 @@ import { X } from 'lucide-react';
 const LS_KEY = 'meneurtv_pip_launch';
 
 export interface PipLaunchPayload {
-  url: string;
+  url?: string;
+  urls?: string[];
   poster?: string;
   name?: string;
 }
@@ -20,15 +21,28 @@ const PipPlayer: React.FC = () => {
       if (!raw) return;
       const data = JSON.parse(raw) as PipLaunchPayload;
       localStorage.removeItem(LS_KEY);
-      if (data && typeof data.url === 'string' && data.url.length > 0) {
-        setPayload({ url: data.url, poster: data.poster, name: data.name });
+      if (data && typeof data === 'object') {
+        const urls = Array.isArray(data.urls)
+          ? data.urls.filter((u): u is string => typeof u === 'string' && u.length > 0)
+          : [];
+        const single = typeof data.url === 'string' ? data.url : '';
+        if (urls.length > 0) {
+          setPayload({
+            urls,
+            url: urls[0],
+            poster: data.poster,
+            name: data.name,
+          });
+        } else if (single.length > 0) {
+          setPayload({ url: single, poster: data.poster, name: data.name });
+        }
       }
     } catch {
       localStorage.removeItem(LS_KEY);
     }
   }, []);
 
-  if (!payload?.url) {
+  if (!payload || (!(payload.urls?.length) && !payload.url?.length)) {
     return (
       <div className="min-h-screen bg-[#080808] text-white flex flex-col items-center justify-center p-6 gap-4">
         <p className="text-sm text-gray-400 text-center max-w-sm">
@@ -65,6 +79,7 @@ const PipPlayer: React.FC = () => {
       </header>
       <div className="flex-1 min-h-0 flex flex-col">
         <VideoPlayer
+          urls={payload.urls}
           url={payload.url}
           poster={payload.poster}
           popoutTitle={payload.name}
